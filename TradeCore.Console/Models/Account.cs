@@ -2,13 +2,42 @@ namespace TradeCore.Console.Models;
 
 public class Account
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; private set; }
 
-    public Guid UserId { get; set; }
+    public Guid UserId { get; private set; }
 
-    public string AccountNumber { get; set; } = string.Empty;
+    public string AccountNumber { get; private set; }
 
-    public decimal Balance { get; set; }
+    public decimal Balance { get; private set; }
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; private set; }
+
+    public Account(Guid id, Guid userId, string accountNumber, decimal balance)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException("Account ID cannot be empty.", nameof(id));
+        }
+
+        if (userId == Guid.Empty)
+        {
+            throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        }
+
+        if (string.IsNullOrWhiteSpace(accountNumber))
+        {
+            throw new ArgumentException("Account number cannot be empty.", nameof(accountNumber));
+        }
+
+        if (balance < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(balance), "Balance cannot be negative.");
+        }
+
+        Id = id;
+        UserId = userId;
+        AccountNumber = accountNumber;
+        Balance = balance;
+        CreatedAt = DateTime.UtcNow;
+    }
 }
