@@ -1,3 +1,5 @@
+using TradeCore.Console.Enums;
+
 namespace TradeCore.Console.Models;
 
 public class Order
@@ -7,6 +9,10 @@ public class Order
     public Guid AccountId { get; set; }
 
     public Guid StockId { get; set; }
+
+    public OrderType Type { get; set; }
+
+    public OrderStatus Status { get; set; }
 
     public int Quantity { get; set; }
 
