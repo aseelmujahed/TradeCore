@@ -34,9 +34,9 @@ public class PortfolioPosition
             throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
         }
 
-        if (averagePrice < 0)
+        if (averagePrice <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(averagePrice), "Average price cannot be negative.");
+            throw new ArgumentOutOfRangeException(nameof(averagePrice), "Average price must be greater than zero.");
         }
 
         Id = id;
@@ -44,5 +44,39 @@ public class PortfolioPosition
         StockId = stockId;
         Quantity = quantity;
         AveragePrice = averagePrice;
+    }
+
+    public void AddShares(int quantity, decimal purchasePrice)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+        }
+
+        if (purchasePrice <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(purchasePrice), "Purchase price must be greater than zero.");
+        }
+
+        var totalCost = (Quantity * AveragePrice) + (quantity * purchasePrice);
+        var totalQuantity = Quantity + quantity;
+
+        AveragePrice = totalCost / totalQuantity;
+        Quantity += quantity;
+    }
+
+    public void RemoveShares(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+        }
+
+        if (quantity > Quantity)
+        {
+            throw new InvalidOperationException("Cannot sell more shares than are owned.");
+        }
+
+        Quantity -= quantity;
     }
 }
