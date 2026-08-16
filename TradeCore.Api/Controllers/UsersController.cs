@@ -9,10 +9,17 @@ namespace TradeCore.Api.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly UserService _userService;
+    private readonly AccountService _accountService;
+    private readonly PortfolioService _portfolioService;
 
-    public UsersController(UserService userService)
+    public UsersController(
+        UserService userService,
+        AccountService accountService,
+        PortfolioService portfolioService)
     {
         _userService = userService;
+        _accountService = accountService;
+        _portfolioService = portfolioService;
     }
 
     [HttpPost]
@@ -40,6 +47,24 @@ public class UsersController : ControllerBase
         }
 
         return Ok(user);
+    }
+
+    [HttpGet("{id:guid}/portfolio")]
+    public ActionResult<IReadOnlyList<PortfolioPosition>> GetPortfolio(Guid id)
+    {
+        if (_userService.GetUser(id) is null)
+        {
+            return NotFound();
+        }
+
+        var account = _accountService.GetAccountByUserId(id);
+
+        if (account is null)
+        {
+            return NotFound($"Account for user '{id}' was not found.");
+        }
+
+        return Ok(_portfolioService.GetPortfolioPositions(account.Id));
     }
 }
 

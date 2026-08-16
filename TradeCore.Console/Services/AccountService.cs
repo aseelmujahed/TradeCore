@@ -29,6 +29,11 @@ public class AccountService
         return account.Balance;
     }
 
+    public Account? GetAccountByUserId(Guid userId)
+    {
+        return _accounts.Values.FirstOrDefault(account => account.UserId == userId);
+    }
+
     public Account GetAccount(Guid accountId)
     {
         if (!_accounts.TryGetValue(accountId, out var account))
