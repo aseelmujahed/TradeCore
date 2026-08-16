@@ -29,7 +29,7 @@ public class AccountService
         return account.Balance;
     }
 
-    private Account GetAccount(Guid accountId)
+    public Account GetAccount(Guid accountId)
     {
         if (!_accounts.TryGetValue(accountId, out var account))
         {
