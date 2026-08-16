@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
+using TradeCore.Api.DTOs.Portfolio;
+using TradeCore.Api.DTOs.Users;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -23,21 +25,21 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<User> CreateUser(CreateUserRequest request)
+    public ActionResult<UserResponse> CreateUser(CreateUserRequest request)
     {
         var user = _userService.CreateUser(request.Username, request.Email);
 
-        return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, user);
+        return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, ToResponse(user));
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<User>> GetUsers()
+    public ActionResult<IReadOnlyList<UserResponse>> GetUsers()
     {
-        return Ok(_userService.GetAllUsers());
+        return Ok(_userService.GetAllUsers().Select(ToResponse).ToList());
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<User> GetUserById(Guid id)
+    public ActionResult<UserResponse> GetUserById(Guid id)
     {
         var user = _userService.GetUser(id);
 
@@ -46,11 +48,11 @@ public class UsersController : ControllerBase
             return NotFound();
         }
 
-        return Ok(user);
+        return Ok(ToResponse(user));
     }
 
     [HttpGet("{id:guid}/portfolio")]
-    public ActionResult<IReadOnlyList<PortfolioPosition>> GetPortfolio(Guid id)
+    public ActionResult<IReadOnlyList<PortfolioPositionResponse>> GetPortfolio(Guid id)
     {
         if (_userService.GetUser(id) is null)
         {
@@ -64,8 +66,22 @@ public class UsersController : ControllerBase
             return NotFound($"Account for user '{id}' was not found.");
         }
 
-        return Ok(_portfolioService.GetPortfolioPositions(account.Id));
+        return Ok(_portfolioService.GetPortfolioPositions(account.Id)
+            .Select(ToResponse)
+            .ToList());
+    }
+
+    private static UserResponse ToResponse(User user)
+    {
+        return new UserResponse(user.Id, user.Username, user.Email, user.CreatedAt);
+    }
+
+    private static PortfolioPositionResponse ToResponse(PortfolioPosition position)
+    {
+        return new PortfolioPositionResponse(
+            position.AccountId,
+            position.StockId,
+            position.Quantity,
+            position.AveragePrice);
     }
 }
-
-public record CreateUserRequest(string Username, string Email);

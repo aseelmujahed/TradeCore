@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using TradeCore.Console.Enums;
+using TradeCore.Api.DTOs.Orders;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -17,7 +17,7 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<Order> CreateOrder(CreateOrderRequest request)
+    public ActionResult<OrderResponse> CreateOrder(CreateOrderRequest request)
     {
         try
         {
@@ -28,7 +28,7 @@ public class OrdersController : ControllerBase
                 request.Quantity,
                 request.Price);
 
-            return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, order);
+            return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }
         catch (ArgumentException exception)
         {
@@ -41,28 +41,34 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<Order>> GetOrders()
+    public ActionResult<IReadOnlyList<OrderResponse>> GetOrders()
     {
-        return Ok(_orderService.GetAllOrders());
+        return Ok(_orderService.GetAllOrders().Select(ToResponse).ToList());
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<Order> GetOrderById(Guid id)
+    public ActionResult<OrderResponse> GetOrderById(Guid id)
     {
         try
         {
-            return Ok(_orderService.GetOrder(id));
+            return Ok(ToResponse(_orderService.GetOrder(id)));
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
     }
-}
 
-public record CreateOrderRequest(
-    Guid AccountId,
-    string StockSymbol,
-    OrderType Type,
-    int Quantity,
-    decimal Price);
+    private static OrderResponse ToResponse(Order order)
+    {
+        return new OrderResponse(
+            order.Id,
+            order.AccountId,
+            order.StockId,
+            order.Type,
+            order.Quantity,
+            order.Price,
+            order.Status,
+            order.CreatedAt);
+    }
+}

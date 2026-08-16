@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using TradeCore.Api.DTOs.Stocks;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -16,21 +17,26 @@ public class StocksController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<Stock>> GetStocks()
+    public ActionResult<IReadOnlyList<StockResponse>> GetStocks()
     {
-        return Ok(_stockService.GetAllStocks());
+        return Ok(_stockService.GetAllStocks().Select(ToResponse).ToList());
     }
 
     [HttpGet("{symbol}")]
-    public ActionResult<Stock> GetStockBySymbol(string symbol)
+    public ActionResult<StockResponse> GetStockBySymbol(string symbol)
     {
         try
         {
-            return Ok(_stockService.GetStockBySymbol(symbol.Trim()));
+            return Ok(ToResponse(_stockService.GetStockBySymbol(symbol.Trim())));
         }
         catch (KeyNotFoundException)
         {
             return NotFound();
         }
+    }
+
+    private static StockResponse ToResponse(Stock stock)
+    {
+        return new StockResponse(stock.Id, stock.Symbol, stock.Name, stock.CurrentPrice);
     }
 }
