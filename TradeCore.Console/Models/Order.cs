@@ -20,7 +20,11 @@ public class Order
 
     public DateTime CreatedAt { get; private set; }
 
-    public Order(Guid id, Guid accountId, Guid stockId, OrderType type, int quantity, decimal price)
+    private Order()
+    {
+    }
+
+    public Order(Guid id, Guid accountId, Guid stockId, OrderType type, int initialQuantity, decimal price)
     {
         if (id == Guid.Empty)
         {
@@ -42,9 +46,9 @@ public class Order
             throw new ArgumentException("Order type must be Buy or Sell.", nameof(type));
         }
 
-        if (quantity <= 0)
+        if (initialQuantity <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(initialQuantity), "Quantity must be greater than zero.");
         }
 
         if (price < 0)
@@ -57,8 +61,30 @@ public class Order
         StockId = stockId;
         Type = type;
         Status = OrderStatus.Pending;
-        Quantity = quantity;
+        Quantity = initialQuantity;
         Price = price;
         CreatedAt = DateTime.UtcNow;
+    }
+
+    public void ApplyFill(int executedQuantity)
+    {
+        if (executedQuantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(executedQuantity),
+                "Executed quantity must be greater than zero.");
+        }
+
+        if (executedQuantity > Quantity)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(executedQuantity),
+                "Executed quantity cannot exceed the remaining order quantity.");
+        }
+
+        Quantity -= executedQuantity;
+        Status = Quantity == 0
+            ? OrderStatus.Filled
+            : OrderStatus.PartiallyFilled;
     }
 }
