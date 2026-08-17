@@ -50,4 +50,24 @@ public class Account
 
         Balance += amount;
     }
+
+    public void Debit(decimal amount)
+    {
+        EnsureCanDebit(amount);
+
+        Balance -= amount;
+    }
+
+    public void EnsureCanDebit(decimal amount)
+    {
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(amount), "Debit amount must be greater than zero.");
+        }
+
+        if (amount > Balance)
+        {
+            throw new InvalidOperationException("Insufficient account balance for this trade.");
+        }
+    }
 }
