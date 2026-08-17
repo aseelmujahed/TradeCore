@@ -9,7 +9,7 @@ public class UserService
 
     public User CreateUser(string username, string email)
     {
-        var normalizedEmail = email.Trim();
+        var normalizedEmail = email.Trim().ToLowerInvariant();
 
         if (_users.Values.Any(user => string.Equals(
                 user.Email,

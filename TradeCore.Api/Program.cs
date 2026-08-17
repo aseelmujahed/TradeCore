@@ -1,12 +1,20 @@
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using TradeCore.Api.Data;
 using TradeCore.Api.ExceptionHandling;
 using TradeCore.Console.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("TradeCoreDatabase")
+    ?? throw new InvalidOperationException(
+        "The required 'ConnectionStrings:TradeCoreDatabase' configuration setting is missing.");
+
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddDbContext<TradeCoreDbContext>(options =>
+    options.UseNpgsql(connectionString));
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
