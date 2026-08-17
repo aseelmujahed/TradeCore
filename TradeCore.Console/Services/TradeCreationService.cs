@@ -59,14 +59,17 @@ public sealed class TradeCreationService
 
         buyOrder.ApplyFill(orderMatch.MatchedQuantity);
         sellOrder.ApplyFill(orderMatch.MatchedQuantity);
-        _dbContext.SaveChanges();
-
-        return new Trade(
+        var trade = new Trade(
             Guid.NewGuid(),
             orderMatch.BuyOrder.Id,
             orderMatch.SellOrder.Id,
             stockId,
             orderMatch.MatchedQuantity,
             orderMatch.MatchPrice);
+
+        _dbContext.Trades.Add(trade);
+        _dbContext.SaveChanges();
+
+        return trade;
     }
 }

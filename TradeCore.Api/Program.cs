@@ -29,6 +29,7 @@ builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<OrderBookService>();
 builder.Services.AddScoped<OrderMatchingService>();
 builder.Services.AddScoped<TradeCreationService>();
+builder.Services.AddScoped<TradeHistoryService>();
 builder.Services.AddScoped<PortfolioService>();
 
 var app = builder.Build();
