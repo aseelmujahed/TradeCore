@@ -11,9 +11,9 @@ public sealed class OrderMatchingService
         _orderBookService = orderBookService ?? throw new ArgumentNullException(nameof(orderBookService));
     }
 
-    public OrderMatch? FindBestMatch(Guid stockId)
+    public async Task<OrderMatch?> FindBestMatchAsync(Guid stockId, CancellationToken cancellationToken = default)
     {
-        var orderBook = _orderBookService.GetOrderBook(stockId);
+        var orderBook = await _orderBookService.GetOrderBookAsync(stockId, cancellationToken);
         var buyOrder = orderBook.BuyOrders.FirstOrDefault();
         var sellOrder = orderBook.SellOrders.FirstOrDefault();
 

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
@@ -20,15 +21,16 @@ public class OrderService
         _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
     }
 
-    public Order CreateOrder(
+    public async Task<Order> CreateOrderAsync(
         Guid accountId,
         string stockSymbol,
         OrderType type,
         int quantity,
-        decimal price)
+        decimal price,
+        CancellationToken cancellationToken = default)
     {
-        _accountService.GetAccount(accountId);
-        var stock = _stockService.GetStockBySymbol(stockSymbol);
+        await _accountService.GetAccountAsync(accountId, cancellationToken);
+        var stock = await _stockService.GetStockBySymbolAsync(stockSymbol, cancellationToken);
 
         var order = new Order(
             Guid.NewGuid(),
@@ -39,14 +41,14 @@ public class OrderService
             price);
 
         _dbContext.Orders.Add(order);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return order;
     }
 
-    public Order GetOrder(Guid orderId)
+    public async Task<Order> GetOrderAsync(Guid orderId, CancellationToken cancellationToken = default)
     {
-        var order = _dbContext.Orders.SingleOrDefault(order => order.Id == orderId);
+        var order = await _dbContext.Orders.SingleOrDefaultAsync(order => order.Id == orderId, cancellationToken);
 
         if (order is null)
         {
@@ -56,8 +58,8 @@ public class OrderService
         return order;
     }
 
-    public IReadOnlyList<Order> GetAllOrders()
+    public async Task<IReadOnlyList<Order>> GetAllOrdersAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Orders.ToList();
+        return await _dbContext.Orders.ToListAsync(cancellationToken);
     }
 }

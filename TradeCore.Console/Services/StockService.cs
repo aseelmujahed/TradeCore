@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -12,14 +13,14 @@ public class StockService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public Stock AddStock(string symbol, string name, decimal currentPrice)
+    public async Task<Stock> AddStockAsync(string symbol, string name, decimal currentPrice, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(symbol))
         {
             throw new ArgumentException("Stock symbol cannot be empty.", nameof(symbol));
         }
 
-        if (_dbContext.Stocks.Any(stock => stock.Symbol.ToUpper() == symbol.ToUpper()))
+        if (await _dbContext.Stocks.AnyAsync(stock => stock.Symbol.ToUpper() == symbol.ToUpper(), cancellationToken))
         {
             throw new ArgumentException(
                 $"A stock with symbol '{symbol}' already exists.",
@@ -34,20 +35,20 @@ public class StockService
         );
 
         _dbContext.Stocks.Add(stock);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return stock;
     }
 
-    public Stock GetStockBySymbol(string symbol)
+    public async Task<Stock> GetStockBySymbolAsync(string symbol, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(symbol))
         {
             throw new ArgumentException("Stock symbol cannot be empty.", nameof(symbol));
         }
 
-        var stock = _dbContext.Stocks.SingleOrDefault(
-            stock => stock.Symbol.ToUpper() == symbol.ToUpper());
+        var stock = await _dbContext.Stocks.SingleOrDefaultAsync(
+            stock => stock.Symbol.ToUpper() == symbol.ToUpper(), cancellationToken);
 
         if (stock is null)
         {
@@ -58,8 +59,8 @@ public class StockService
         return stock;
     }
 
-    public IReadOnlyList<Stock> GetAllStocks()
+    public async Task<IReadOnlyList<Stock>> GetAllStocksAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Stocks.ToList();
+        return await _dbContext.Stocks.ToListAsync(cancellationToken);
     }
 }

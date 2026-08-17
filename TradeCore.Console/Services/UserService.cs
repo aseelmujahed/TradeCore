@@ -14,11 +14,11 @@ public class UserService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public User CreateUser(string username, string email)
+    public async Task<User> CreateUserAsync(string username, string email, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
 
-        if (_dbContext.Users.Any(user => user.Email == normalizedEmail))
+        if (await _dbContext.Users.AnyAsync(user => user.Email == normalizedEmail, cancellationToken))
         {
             throw new DuplicateUserEmailException();
         }
@@ -32,18 +32,18 @@ public class UserService
 
         _dbContext.Users.Add(user);
         _dbContext.Accounts.Add(account);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return user;
     }
 
-    public IReadOnlyList<User> GetAllUsers()
+    public async Task<IReadOnlyList<User>> GetAllUsersAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Users.ToList();
+        return await _dbContext.Users.ToListAsync(cancellationToken);
     }
 
-    public User? GetUser(Guid id)
+    public Task<User?> GetUserAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return _dbContext.Users.SingleOrDefault(user => user.Id == id);
+        return _dbContext.Users.SingleOrDefaultAsync(user => user.Id == id, cancellationToken);
     }
 }

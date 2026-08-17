@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -13,12 +14,12 @@ public static class StockDataSeeder
         new("7c91a50a-f398-42d0-8dc5-4e873f9db104", "TSLA", "Tesla, Inc.", 250.00m)
     ];
 
-    public static void Seed(TradeCoreDbContext dbContext)
+    public static async Task SeedAsync(TradeCoreDbContext dbContext, CancellationToken cancellationToken = default)
     {
         foreach (var seedStock in SeedStocks)
         {
-            if (dbContext.Stocks.Any(stock =>
-                    stock.Symbol.ToUpper() == seedStock.Symbol.ToUpper()))
+            if (await dbContext.Stocks.AnyAsync(stock =>
+                    stock.Symbol.ToUpper() == seedStock.Symbol.ToUpper(), cancellationToken))
             {
                 continue;
             }
@@ -32,7 +33,7 @@ public static class StockDataSeeder
 
         if (dbContext.ChangeTracker.HasChanges())
         {
-            dbContext.SaveChanges();
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
     }
 

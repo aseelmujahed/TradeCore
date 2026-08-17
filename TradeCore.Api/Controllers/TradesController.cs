@@ -17,9 +17,10 @@ public class TradesController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<TradeResponse>> GetTrades()
+    public async Task<ActionResult<IReadOnlyList<TradeResponse>>> GetTrades(CancellationToken cancellationToken)
     {
-        return Ok(_tradeHistoryService.GetAllTrades().Select(ToResponse).ToList());
+        var trades = await _tradeHistoryService.GetAllTradesAsync(cancellationToken);
+        return Ok(trades.Select(ToResponse).ToList());
     }
 
     private static TradeResponse ToResponse(Trade trade)

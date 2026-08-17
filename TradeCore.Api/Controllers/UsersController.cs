@@ -26,11 +26,11 @@ public class UsersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<UserResponse> CreateUser(CreateUserRequest request)
+    public async Task<ActionResult<UserResponse>> CreateUser(CreateUserRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var user = _userService.CreateUser(request.Username.Trim(), request.Email);
+            var user = await _userService.CreateUserAsync(request.Username.Trim(), request.Email, cancellationToken);
 
             return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, ToResponse(user));
         }
@@ -41,15 +41,16 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<UserResponse>> GetUsers()
+    public async Task<ActionResult<IReadOnlyList<UserResponse>>> GetUsers(CancellationToken cancellationToken)
     {
-        return Ok(_userService.GetAllUsers().Select(ToResponse).ToList());
+        var users = await _userService.GetAllUsersAsync(cancellationToken);
+        return Ok(users.Select(ToResponse).ToList());
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<UserResponse> GetUserById(Guid id)
+    public async Task<ActionResult<UserResponse>> GetUserById(Guid id, CancellationToken cancellationToken)
     {
-        var user = _userService.GetUser(id);
+        var user = await _userService.GetUserAsync(id, cancellationToken);
 
         if (user is null)
         {
@@ -60,23 +61,22 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id:guid}/portfolio")]
-    public ActionResult<IReadOnlyList<PortfolioPositionResponse>> GetPortfolio(Guid id)
+    public async Task<ActionResult<IReadOnlyList<PortfolioPositionResponse>>> GetPortfolio(Guid id, CancellationToken cancellationToken)
     {
-        if (_userService.GetUser(id) is null)
+        if (await _userService.GetUserAsync(id, cancellationToken) is null)
         {
             return NotFound();
         }
 
-        var account = _accountService.GetAccountByUserId(id);
+        var account = await _accountService.GetAccountByUserIdAsync(id, cancellationToken);
 
         if (account is null)
         {
             return NotFound($"Account for user '{id}' was not found.");
         }
 
-        return Ok(_portfolioService.GetPortfolioPositions(account.Id)
-            .Select(ToResponse)
-            .ToList());
+        var positions = await _portfolioService.GetPortfolioPositionsAsync(account.Id, cancellationToken);
+        return Ok(positions.Select(ToResponse).ToList());
     }
 
     private static UserResponse ToResponse(User user)

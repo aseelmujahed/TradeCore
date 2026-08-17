@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -12,9 +13,9 @@ public class AccountService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public Account CreateAccount(Guid userId, string accountNumber)
+    public async Task<Account> CreateAccountAsync(Guid userId, string accountNumber, CancellationToken cancellationToken = default)
     {
-        if (!_dbContext.Users.Any(user => user.Id == userId))
+        if (!await _dbContext.Users.AnyAsync(user => user.Id == userId, cancellationToken))
         {
             throw new KeyNotFoundException($"User with ID '{userId}' was not found.");
         }
@@ -22,34 +23,34 @@ public class AccountService
         var account = new Account(Guid.NewGuid(), userId, accountNumber, 0m);
 
         _dbContext.Accounts.Add(account);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return account;
     }
 
-    public void Deposit(Guid accountId, decimal amount)
+    public async Task DepositAsync(Guid accountId, decimal amount, CancellationToken cancellationToken = default)
     {
-        var account = GetAccount(accountId);
+        var account = await GetAccountAsync(accountId, cancellationToken);
 
         account.Deposit(amount);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public decimal GetBalance(Guid accountId)
+    public async Task<decimal> GetBalanceAsync(Guid accountId, CancellationToken cancellationToken = default)
     {
-        var account = GetAccount(accountId);
+        var account = await GetAccountAsync(accountId, cancellationToken);
 
         return account.Balance;
     }
 
-    public Account? GetAccountByUserId(Guid userId)
+    public Task<Account?> GetAccountByUserIdAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        return _dbContext.Accounts.SingleOrDefault(account => account.UserId == userId);
+        return _dbContext.Accounts.SingleOrDefaultAsync(account => account.UserId == userId, cancellationToken);
     }
 
-    public Account GetAccount(Guid accountId)
+    public async Task<Account> GetAccountAsync(Guid accountId, CancellationToken cancellationToken = default)
     {
-        var account = _dbContext.Accounts.SingleOrDefault(account => account.Id == accountId);
+        var account = await _dbContext.Accounts.SingleOrDefaultAsync(account => account.Id == accountId, cancellationToken);
 
         if (account is null)
         {

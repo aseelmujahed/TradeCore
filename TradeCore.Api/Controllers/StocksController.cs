@@ -17,17 +17,18 @@ public class StocksController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<StockResponse>> GetStocks()
+    public async Task<ActionResult<IReadOnlyList<StockResponse>>> GetStocks(CancellationToken cancellationToken)
     {
-        return Ok(_stockService.GetAllStocks().Select(ToResponse).ToList());
+        var stocks = await _stockService.GetAllStocksAsync(cancellationToken);
+        return Ok(stocks.Select(ToResponse).ToList());
     }
 
     [HttpGet("{symbol}")]
-    public ActionResult<StockResponse> GetStockBySymbol(string symbol)
+    public async Task<ActionResult<StockResponse>> GetStockBySymbol(string symbol, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(ToResponse(_stockService.GetStockBySymbol(symbol.Trim())));
+            return Ok(ToResponse(await _stockService.GetStockBySymbolAsync(symbol.Trim(), cancellationToken)));
         }
         catch (KeyNotFoundException)
         {

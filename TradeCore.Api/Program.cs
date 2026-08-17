@@ -37,7 +37,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
-    StockDataSeeder.Seed(dbContext);
+    await StockDataSeeder.SeedAsync(dbContext);
 }
 
 app.UseExceptionHandler();

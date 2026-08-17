@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TradeCore.Api\TradeCore.Api.csproj" />
     <ProjectReference Include="..\TradeCore.Console\TradeCore.Console.csproj" />
   </ItemGroup>
 

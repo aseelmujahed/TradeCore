@@ -6,13 +6,13 @@ namespace TradeCore.Tests;
 public sealed class OrderMatchingServiceTests
 {
     [Fact]
-    public void FindBestMatch_WhenBuyPriceMeetsSellPrice_ReturnsMatch()
+    public async Task FindBestMatch_WhenBuyPriceMeetsSellPrice_ReturnsMatch()
     {
         using var database = new TradingTestDatabase();
         using var dbContext = database.CreateContext();
-        var scenario = database.SeedScenario(dbContext, buyPrice: 200m, sellPrice: 195m);
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 200m, sellPrice: 195m);
 
-        var match = database.CreateServices(dbContext).MatchingService.FindBestMatch(scenario.Stock.Id);
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
 
         Assert.NotNull(match);
         Assert.Equal(scenario.BuyOrder.Id, match.BuyOrder.Id);
@@ -20,29 +20,29 @@ public sealed class OrderMatchingServiceTests
     }
 
     [Fact]
-    public void FindBestMatch_WhenBuyPriceIsBelowSellPrice_ReturnsNull()
+    public async Task FindBestMatch_WhenBuyPriceIsBelowSellPrice_ReturnsNull()
     {
         using var database = new TradingTestDatabase();
         using var dbContext = database.CreateContext();
-        var scenario = database.SeedScenario(dbContext, buyPrice: 190m, sellPrice: 195m);
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 190m, sellPrice: 195m);
 
-        var match = database.CreateServices(dbContext).MatchingService.FindBestMatch(scenario.Stock.Id);
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
 
         Assert.Null(match);
     }
 
     [Fact]
-    public void FindBestMatch_WithMultipleOrders_SelectsHighestBuyAndLowestSell()
+    public async Task FindBestMatch_WithMultipleOrders_SelectsHighestBuyAndLowestSell()
     {
         using var database = new TradingTestDatabase();
         using var dbContext = database.CreateContext();
-        var scenario = database.SeedScenario(dbContext, buyPrice: 200m, sellPrice: 195m);
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 200m, sellPrice: 195m);
         var lowerBuy = new Order(Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Buy, 4, 199m);
         var higherSell = new Order(Guid.NewGuid(), scenario.Seller.Id, scenario.Stock.Id, OrderType.Sell, 4, 196m);
         dbContext.AddRange(lowerBuy, higherSell);
-        dbContext.SaveChanges();
+        await dbContext.SaveChangesAsync();
 
-        var match = database.CreateServices(dbContext).MatchingService.FindBestMatch(scenario.Stock.Id);
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
 
         Assert.NotNull(match);
         Assert.Equal(scenario.BuyOrder.Id, match.BuyOrder.Id);
@@ -50,11 +50,11 @@ public sealed class OrderMatchingServiceTests
     }
 
     [Fact]
-    public void FindBestMatch_WhenPricesAreEqual_SelectsOlderOrdersFirst()
+    public async Task FindBestMatch_WhenPricesAreEqual_SelectsOlderOrdersFirst()
     {
         using var database = new TradingTestDatabase();
         using var dbContext = database.CreateContext();
-        var scenario = database.SeedScenario(dbContext, buyPrice: 200m, sellPrice: 200m);
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 200m, sellPrice: 200m);
         var newerBuy = new Order(Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Buy, 4, 200m);
         var newerSell = new Order(Guid.NewGuid(), scenario.Seller.Id, scenario.Stock.Id, OrderType.Sell, 4, 200m);
         dbContext.AddRange(newerBuy, newerSell);
@@ -64,9 +64,9 @@ public sealed class OrderMatchingServiceTests
         dbContext.Entry(scenario.SellOrder).Property(nameof(Order.CreatedAt)).CurrentValue = olderTime;
         dbContext.Entry(newerBuy).Property(nameof(Order.CreatedAt)).CurrentValue = newerTime;
         dbContext.Entry(newerSell).Property(nameof(Order.CreatedAt)).CurrentValue = newerTime;
-        dbContext.SaveChanges();
+        await dbContext.SaveChangesAsync();
 
-        var match = database.CreateServices(dbContext).MatchingService.FindBestMatch(scenario.Stock.Id);
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
 
         Assert.NotNull(match);
         Assert.Equal(scenario.BuyOrder.Id, match.BuyOrder.Id);

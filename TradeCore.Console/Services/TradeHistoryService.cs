@@ -13,12 +13,12 @@ public sealed class TradeHistoryService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public IReadOnlyList<Trade> GetAllTrades()
+    public async Task<IReadOnlyList<Trade>> GetAllTradesAsync(CancellationToken cancellationToken = default)
     {
-        return _dbContext.Trades
+        return await _dbContext.Trades
             .AsNoTracking()
             .OrderByDescending(trade => trade.ExecutedAt)
             .ThenByDescending(trade => trade.Id)
-            .ToList();
+            .ToListAsync(cancellationToken);
     }
 }

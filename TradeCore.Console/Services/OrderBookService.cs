@@ -14,7 +14,7 @@ public sealed class OrderBookService
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
-    public OrderBook GetOrderBook(Guid stockId)
+    public async Task<OrderBook> GetOrderBookAsync(Guid stockId, CancellationToken cancellationToken = default)
     {
         if (stockId == Guid.Empty)
         {
@@ -27,19 +27,19 @@ public sealed class OrderBookService
                 order.StockId == stockId &&
                 (order.Status == OrderStatus.Pending || order.Status == OrderStatus.PartiallyFilled));
 
-        var buyOrders = activeOrders
+        var buyOrders = await activeOrders
             .Where(order => order.Type == OrderType.Buy)
             .OrderByDescending(order => order.Price)
             .ThenBy(order => order.CreatedAt)
             .ThenBy(order => order.Id)
-            .ToList();
+            .ToListAsync(cancellationToken);
 
-        var sellOrders = activeOrders
+        var sellOrders = await activeOrders
             .Where(order => order.Type == OrderType.Sell)
             .OrderBy(order => order.Price)
             .ThenBy(order => order.CreatedAt)
             .ThenBy(order => order.Id)
-            .ToList();
+            .ToListAsync(cancellationToken);
 
         return new OrderBook(stockId, buyOrders, sellOrders);
     }

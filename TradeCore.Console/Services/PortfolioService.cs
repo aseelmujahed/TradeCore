@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -19,17 +20,22 @@ public class PortfolioService
         _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
     }
 
-    public PortfolioPosition AddPurchasedShares(Guid accountId, string stockSymbol, int quantity)
+    public async Task<PortfolioPosition> AddPurchasedSharesAsync(
+        Guid accountId,
+        string stockSymbol,
+        int quantity,
+        CancellationToken cancellationToken = default)
     {
-        _accountService.GetAccount(accountId);
-        var stock = _stockService.GetStockBySymbol(stockSymbol);
-        var position = _dbContext.PortfolioPositions.SingleOrDefault(
-            position => position.AccountId == accountId && position.StockId == stock.Id);
+        await _accountService.GetAccountAsync(accountId, cancellationToken);
+        var stock = await _stockService.GetStockBySymbolAsync(stockSymbol, cancellationToken);
+        var position = await _dbContext.PortfolioPositions.SingleOrDefaultAsync(
+            position => position.AccountId == accountId && position.StockId == stock.Id,
+            cancellationToken);
 
         if (position is not null)
         {
             position.AddShares(quantity, stock.CurrentPrice);
-            _dbContext.SaveChanges();
+            await _dbContext.SaveChangesAsync(cancellationToken);
             return position;
         }
 
@@ -41,17 +47,22 @@ public class PortfolioService
             stock.CurrentPrice);
 
         _dbContext.PortfolioPositions.Add(position);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return position;
     }
 
-    public void SellShares(Guid accountId, string stockSymbol, int quantity)
+    public async Task SellSharesAsync(
+        Guid accountId,
+        string stockSymbol,
+        int quantity,
+        CancellationToken cancellationToken = default)
     {
-        _accountService.GetAccount(accountId);
-        var stock = _stockService.GetStockBySymbol(stockSymbol);
-        var position = _dbContext.PortfolioPositions.SingleOrDefault(
-            position => position.AccountId == accountId && position.StockId == stock.Id);
+        await _accountService.GetAccountAsync(accountId, cancellationToken);
+        var stock = await _stockService.GetStockBySymbolAsync(stockSymbol, cancellationToken);
+        var position = await _dbContext.PortfolioPositions.SingleOrDefaultAsync(
+            position => position.AccountId == accountId && position.StockId == stock.Id,
+            cancellationToken);
 
         if (position is null)
         {
@@ -66,22 +77,29 @@ public class PortfolioService
             _dbContext.PortfolioPositions.Remove(position);
         }
 
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public IReadOnlyList<PortfolioPosition> GetPortfolioPositions(Guid accountId)
+    public async Task<IReadOnlyList<PortfolioPosition>> GetPortfolioPositionsAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
     {
-        _accountService.GetAccount(accountId);
+        await _accountService.GetAccountAsync(accountId, cancellationToken);
 
-        return _dbContext.PortfolioPositions
+        return await _dbContext.PortfolioPositions
             .Where(position => position.AccountId == accountId)
-            .ToList();
+            .ToListAsync(cancellationToken);
     }
 
-    public void EnsureSufficientShares(Guid accountId, Guid stockId, int quantity)
+    public async Task EnsureSufficientSharesAsync(
+        Guid accountId,
+        Guid stockId,
+        int quantity,
+        CancellationToken cancellationToken = default)
     {
-        var position = _dbContext.PortfolioPositions.SingleOrDefault(
-            position => position.AccountId == accountId && position.StockId == stockId);
+        var position = await _dbContext.PortfolioPositions.SingleOrDefaultAsync(
+            position => position.AccountId == accountId && position.StockId == stockId,
+            cancellationToken);
 
         if (position is null)
         {
@@ -95,19 +113,22 @@ public class PortfolioService
         }
     }
 
-    public void ApplyTradeSettlement(
+    public async Task ApplyTradeSettlementAsync(
         Guid buyerAccountId,
         Guid sellerAccountId,
         Guid stockId,
         int quantity,
-        decimal purchasePrice)
+        decimal purchasePrice,
+        CancellationToken cancellationToken = default)
     {
-        EnsureSufficientShares(sellerAccountId, stockId, quantity);
+        await EnsureSufficientSharesAsync(sellerAccountId, stockId, quantity, cancellationToken);
 
-        var buyerPosition = _dbContext.PortfolioPositions.SingleOrDefault(
-            position => position.AccountId == buyerAccountId && position.StockId == stockId);
-        var sellerPosition = _dbContext.PortfolioPositions.Single(
-            position => position.AccountId == sellerAccountId && position.StockId == stockId);
+        var buyerPosition = await _dbContext.PortfolioPositions.SingleOrDefaultAsync(
+            position => position.AccountId == buyerAccountId && position.StockId == stockId,
+            cancellationToken);
+        var sellerPosition = await _dbContext.PortfolioPositions.SingleAsync(
+            position => position.AccountId == sellerAccountId && position.StockId == stockId,
+            cancellationToken);
 
         if (buyerPosition is null)
         {

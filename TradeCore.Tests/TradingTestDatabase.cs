@@ -39,7 +39,7 @@ public sealed class TradingTestDatabase : IDisposable
             new TradeCreationService(dbContext, matchingService, portfolioService));
     }
 
-    public TradingScenario SeedScenario(
+    public async Task<TradingScenario> SeedScenarioAsync(
         TradeCoreDbContext dbContext,
         decimal buyerBalance = 1_000m,
         int sellerShares = 10,
@@ -68,7 +68,7 @@ public sealed class TradingTestDatabase : IDisposable
             dbContext.PortfolioPositions.Add(new PortfolioPosition(Guid.NewGuid(), seller.Id, stock.Id, sellerShares, 40m));
         }
 
-        dbContext.SaveChanges();
+        await dbContext.SaveChangesAsync();
         return new TradingScenario(stock, buyer, seller, buyOrder, sellOrder);
     }
 

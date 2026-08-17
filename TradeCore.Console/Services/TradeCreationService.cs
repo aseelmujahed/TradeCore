@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -19,19 +20,19 @@ public sealed class TradeCreationService
         _portfolioService = portfolioService ?? throw new ArgumentNullException(nameof(portfolioService));
     }
 
-    public Trade? CreateTrade(Guid stockId)
+    public async Task<Trade?> CreateTradeAsync(Guid stockId, CancellationToken cancellationToken = default)
     {
-        var orderMatch = _orderMatchingService.FindBestMatch(stockId);
+        var orderMatch = await _orderMatchingService.FindBestMatchAsync(stockId, cancellationToken);
 
         if (orderMatch is null)
         {
             return null;
         }
 
-        var buyOrder = _dbContext.Orders.Single(order => order.Id == orderMatch.BuyOrder.Id);
-        var sellOrder = _dbContext.Orders.Single(order => order.Id == orderMatch.SellOrder.Id);
-        var buyerAccount = _dbContext.Accounts.Single(account => account.Id == buyOrder.AccountId);
-        var sellerAccount = _dbContext.Accounts.Single(account => account.Id == sellOrder.AccountId);
+        var buyOrder = await _dbContext.Orders.SingleAsync(order => order.Id == orderMatch.BuyOrder.Id, cancellationToken);
+        var sellOrder = await _dbContext.Orders.SingleAsync(order => order.Id == orderMatch.SellOrder.Id, cancellationToken);
+        var buyerAccount = await _dbContext.Accounts.SingleAsync(account => account.Id == buyOrder.AccountId, cancellationToken);
+        var sellerAccount = await _dbContext.Accounts.SingleAsync(account => account.Id == sellOrder.AccountId, cancellationToken);
         var tradeValue = orderMatch.MatchPrice * orderMatch.MatchedQuantity;
 
         if (tradeValue > 0)
@@ -39,10 +40,11 @@ public sealed class TradeCreationService
             buyerAccount.EnsureCanDebit(tradeValue);
         }
 
-        _portfolioService.EnsureSufficientShares(
+        await _portfolioService.EnsureSufficientSharesAsync(
             sellerAccount.Id,
             stockId,
-            orderMatch.MatchedQuantity);
+            orderMatch.MatchedQuantity,
+            cancellationToken);
 
         if (tradeValue > 0)
         {
@@ -50,12 +52,13 @@ public sealed class TradeCreationService
             sellerAccount.Deposit(tradeValue);
         }
 
-        _portfolioService.ApplyTradeSettlement(
+        await _portfolioService.ApplyTradeSettlementAsync(
             buyerAccount.Id,
             sellerAccount.Id,
             stockId,
             orderMatch.MatchedQuantity,
-            orderMatch.MatchPrice);
+            orderMatch.MatchPrice,
+            cancellationToken);
 
         buyOrder.ApplyFill(orderMatch.MatchedQuantity);
         sellOrder.ApplyFill(orderMatch.MatchedQuantity);
@@ -68,7 +71,7 @@ public sealed class TradeCreationService
             orderMatch.MatchPrice);
 
         _dbContext.Trades.Add(trade);
-        _dbContext.SaveChanges();
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         return trade;
     }

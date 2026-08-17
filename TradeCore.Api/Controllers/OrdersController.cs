@@ -17,16 +17,17 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost]
-    public ActionResult<OrderResponse> CreateOrder(CreateOrderRequest request)
+    public async Task<ActionResult<OrderResponse>> CreateOrder(CreateOrderRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            var order = _orderService.CreateOrder(
+            var order = await _orderService.CreateOrderAsync(
                 request.AccountId,
                 request.StockSymbol.Trim(),
                 request.Type,
                 request.Quantity,
-                request.Price);
+                request.Price,
+                cancellationToken);
 
             return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }
@@ -41,17 +42,18 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<IReadOnlyList<OrderResponse>> GetOrders()
+    public async Task<ActionResult<IReadOnlyList<OrderResponse>>> GetOrders(CancellationToken cancellationToken)
     {
-        return Ok(_orderService.GetAllOrders().Select(ToResponse).ToList());
+        var orders = await _orderService.GetAllOrdersAsync(cancellationToken);
+        return Ok(orders.Select(ToResponse).ToList());
     }
 
     [HttpGet("{id:guid}")]
-    public ActionResult<OrderResponse> GetOrderById(Guid id)
+    public async Task<ActionResult<OrderResponse>> GetOrderById(Guid id, CancellationToken cancellationToken)
     {
         try
         {
-            return Ok(ToResponse(_orderService.GetOrder(id)));
+            return Ok(ToResponse(await _orderService.GetOrderAsync(id, cancellationToken)));
         }
         catch (KeyNotFoundException)
         {
