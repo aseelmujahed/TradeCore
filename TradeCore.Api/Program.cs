@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using TradeCore.Api.Data;
 using TradeCore.Api.ExceptionHandling;
+using TradeCore.Console.Data;
 using TradeCore.Console.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,13 +22,19 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(
             new JsonStringEnumConverter(allowIntegerValues: false));
     });
-builder.Services.AddSingleton<UserService>();
-builder.Services.AddSingleton<AccountService>();
-builder.Services.AddSingleton<StockService>();
-builder.Services.AddSingleton<OrderService>();
-builder.Services.AddSingleton<PortfolioService>();
+builder.Services.AddScoped<UserService>();
+builder.Services.AddScoped<AccountService>();
+builder.Services.AddScoped<StockService>();
+builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<PortfolioService>();
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
+    StockDataSeeder.Seed(dbContext);
+}
 
 app.UseExceptionHandler();
 

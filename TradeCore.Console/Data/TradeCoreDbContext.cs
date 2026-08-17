@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TradeCore.Console.Models;
 
-namespace TradeCore.Api.Data;
+namespace TradeCore.Console.Data;
 
 public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> options)
     : DbContext(options)

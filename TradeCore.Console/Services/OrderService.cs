@@ -1,3 +1,4 @@
+using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
 
@@ -7,10 +8,14 @@ public class OrderService
 {
     private readonly AccountService _accountService;
     private readonly StockService _stockService;
-    private readonly Dictionary<Guid, Order> _orders = new();
+    private readonly TradeCoreDbContext _dbContext;
 
-    public OrderService(AccountService accountService, StockService stockService)
+    public OrderService(
+        TradeCoreDbContext dbContext,
+        AccountService accountService,
+        StockService stockService)
     {
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _accountService = accountService ?? throw new ArgumentNullException(nameof(accountService));
         _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
     }
@@ -33,14 +38,17 @@ public class OrderService
             quantity,
             price);
 
-        _orders.Add(order.Id, order);
+        _dbContext.Orders.Add(order);
+        _dbContext.SaveChanges();
 
         return order;
     }
 
     public Order GetOrder(Guid orderId)
     {
-        if (!_orders.TryGetValue(orderId, out var order))
+        var order = _dbContext.Orders.SingleOrDefault(order => order.Id == orderId);
+
+        if (order is null)
         {
             throw new KeyNotFoundException($"Order with ID '{orderId}' was not found.");
         }
@@ -50,6 +58,6 @@ public class OrderService
 
     public IReadOnlyList<Order> GetAllOrders()
     {
-        return _orders.Values.ToList();
+        return _dbContext.Orders.ToList();
     }
 }
