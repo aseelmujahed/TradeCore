@@ -1,3 +1,4 @@
+using TradeCore.Console.Exceptions;
 using TradeCore.Console.Models;
 
 namespace TradeCore.Console.Services;
@@ -8,7 +9,17 @@ public class UserService
 
     public User CreateUser(string username, string email)
     {
-        var user = new User(Guid.NewGuid(), username, email);
+        var normalizedEmail = email.Trim();
+
+        if (_users.Values.Any(user => string.Equals(
+                user.Email,
+                normalizedEmail,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new DuplicateUserEmailException();
+        }
+
+        var user = new User(Guid.NewGuid(), username, normalizedEmail);
 
         _users.Add(user.Id, user);
 

@@ -23,7 +23,7 @@ public class OrdersController : ControllerBase
         {
             var order = _orderService.CreateOrder(
                 request.AccountId,
-                request.StockSymbol,
+                request.StockSymbol.Trim(),
                 request.Type,
                 request.Quantity,
                 request.Price);

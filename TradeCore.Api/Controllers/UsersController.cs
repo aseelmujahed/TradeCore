@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Portfolio;
 using TradeCore.Api.DTOs.Users;
+using TradeCore.Console.Exceptions;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -27,9 +28,16 @@ public class UsersController : ControllerBase
     [HttpPost]
     public ActionResult<UserResponse> CreateUser(CreateUserRequest request)
     {
-        var user = _userService.CreateUser(request.Username, request.Email);
+        try
+        {
+            var user = _userService.CreateUser(request.Username.Trim(), request.Email);
 
-        return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, ToResponse(user));
+            return CreatedAtAction(nameof(GetUserById), new { id = user.Id }, ToResponse(user));
+        }
+        catch (DuplicateUserEmailException)
+        {
+            return Conflict(new { message = "A user with this email already exists." });
+        }
     }
 
     [HttpGet]
