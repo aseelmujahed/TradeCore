@@ -24,8 +24,14 @@ public class UserService
         }
 
         var user = new User(Guid.NewGuid(), username, normalizedEmail);
+        var account = new Account(
+            Guid.NewGuid(),
+            user.Id,
+            $"ACC-{user.Id:N}",
+            0m);
 
         _dbContext.Users.Add(user);
+        _dbContext.Accounts.Add(account);
         _dbContext.SaveChanges();
 
         return user;

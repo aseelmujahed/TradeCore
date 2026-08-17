@@ -26,6 +26,8 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<StockService>();
 builder.Services.AddScoped<OrderService>();
+builder.Services.AddScoped<OrderBookService>();
+builder.Services.AddScoped<OrderMatchingService>();
 builder.Services.AddScoped<PortfolioService>();
 
 var app = builder.Build();
