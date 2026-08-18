@@ -2,8 +2,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
+using TradeCore.Api.Notifications;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
 
@@ -62,6 +64,13 @@ public sealed class OrdersApiRequestBindingTests
         var tradeCreationService = new TradeCreationService(context, matchingService, portfolioService);
         return new OrdersController(
             new OrderService(context, accountService, stockService),
-            new OrderProcessingService(tradeCreationService));
+            new OrderProcessingService(context, tradeCreationService),
+            new NoOpTradeExecutionNotifier(),
+            NullLogger<OrdersController>.Instance);
+    }
+
+    private sealed class NoOpTradeExecutionNotifier : ITradeExecutionNotifier
+    {
+        public Task NotifyTradeExecutedAsync(TradeCore.Api.DTOs.Trades.TradeResponse trade, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

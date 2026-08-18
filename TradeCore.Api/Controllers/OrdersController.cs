@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Orders;
+using TradeCore.Api.DTOs.Trades;
+using TradeCore.Api.Notifications;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -11,11 +13,19 @@ public class OrdersController : ControllerBase
 {
     private readonly OrderService _orderService;
     private readonly OrderProcessingService _orderProcessingService;
+    private readonly ITradeExecutionNotifier _tradeExecutionNotifier;
+    private readonly ILogger<OrdersController> _logger;
 
-    public OrdersController(OrderService orderService, OrderProcessingService orderProcessingService)
+    public OrdersController(
+        OrderService orderService,
+        OrderProcessingService orderProcessingService,
+        ITradeExecutionNotifier tradeExecutionNotifier,
+        ILogger<OrdersController> logger)
     {
         _orderService = orderService;
         _orderProcessingService = orderProcessingService;
+        _tradeExecutionNotifier = tradeExecutionNotifier;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -31,7 +41,23 @@ public class OrdersController : ControllerBase
                 request.Price,
                 cancellationToken);
 
-            await _orderProcessingService.ProcessOrderAsync(order, cancellationToken);
+            var processingResult = await _orderProcessingService.ProcessOrderAsync(order, cancellationToken);
+            foreach (var trade in processingResult.Trades)
+            {
+                try
+                {
+                    await _tradeExecutionNotifier.NotifyTradeExecutedAsync(
+                        ToTradeResponse(trade),
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(
+                        exception,
+                        "Failed to broadcast TradeExecuted notification for committed trade {TradeId}.",
+                        trade.Id);
+                }
+            }
 
             return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }
@@ -76,5 +102,17 @@ public class OrdersController : ControllerBase
             order.Price,
             order.Status,
             order.CreatedAt);
+    }
+
+    private static TradeResponse ToTradeResponse(Trade trade)
+    {
+        return new TradeResponse(
+            trade.Id,
+            trade.BuyOrderId,
+            trade.SellOrderId,
+            trade.StockId,
+            trade.Quantity,
+            trade.Price,
+            trade.ExecutedAt);
     }
 }

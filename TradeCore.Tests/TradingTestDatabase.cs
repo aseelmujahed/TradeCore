@@ -40,7 +40,7 @@ public sealed class TradingTestDatabase : IDisposable
         return new TradingServices(
             matchingService,
             tradeCreationService,
-            new OrderProcessingService(tradeCreationService, stockProcessingLocks ?? new StockProcessingLockRegistry()));
+            new OrderProcessingService(dbContext, tradeCreationService, stockProcessingLocks ?? new StockProcessingLockRegistry()));
     }
 
     public async Task<TradingScenario> SeedScenarioAsync(

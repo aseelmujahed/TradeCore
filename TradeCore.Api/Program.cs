@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using TradeCore.Api.Hubs;
+using TradeCore.Api.Notifications;
 using TradeCore.Api.Data;
 using TradeCore.Api.ExceptionHandling;
 using TradeCore.Console.Data;
@@ -24,6 +26,8 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(
             new JsonStringEnumConverter(allowIntegerValues: false));
     });
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ITradeExecutionNotifier, SignalRTradeExecutionNotifier>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<StockService>();
@@ -59,5 +63,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapControllers();
+app.MapHub<TradingHub>("/hubs/trading");
 
 app.Run();
+
+public partial class Program;
