@@ -10,10 +10,12 @@ namespace TradeCore.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly OrderService _orderService;
+    private readonly OrderProcessingService _orderProcessingService;
 
-    public OrdersController(OrderService orderService)
+    public OrdersController(OrderService orderService, OrderProcessingService orderProcessingService)
     {
         _orderService = orderService;
+        _orderProcessingService = orderProcessingService;
     }
 
     [HttpPost]
@@ -28,6 +30,8 @@ public class OrdersController : ControllerBase
                 request.Quantity,
                 request.Price,
                 cancellationToken);
+
+            await _orderProcessingService.ProcessOrderAsync(order, cancellationToken);
 
             return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }

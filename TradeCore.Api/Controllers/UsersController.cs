@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using TradeCore.Api.DTOs.Accounts;
 using TradeCore.Api.DTOs.Portfolio;
 using TradeCore.Api.DTOs.Users;
 using TradeCore.Console.Exceptions;
@@ -79,6 +80,24 @@ public class UsersController : ControllerBase
         return Ok(positions.Select(ToResponse).ToList());
     }
 
+    [HttpGet("{userId:guid}/account")]
+    public async Task<ActionResult<AccountResponse>> GetAccount(Guid userId, CancellationToken cancellationToken)
+    {
+        if (await _userService.GetUserAsync(userId, cancellationToken) is null)
+        {
+            return NotFound();
+        }
+
+        var account = await _accountService.GetAccountByUserIdAsync(userId, cancellationToken);
+
+        if (account is null)
+        {
+            return NotFound($"Account for user '{userId}' was not found.");
+        }
+
+        return Ok(ToResponse(account));
+    }
+
     private static UserResponse ToResponse(User user)
     {
         return new UserResponse(user.Id, user.Username, user.Email, user.CreatedAt);
@@ -91,5 +110,10 @@ public class UsersController : ControllerBase
             position.StockId,
             position.Quantity,
             position.AveragePrice);
+    }
+
+    private static AccountResponse ToResponse(Account account)
+    {
+        return new AccountResponse(account.Id, account.UserId, account.AccountNumber, account.Balance);
     }
 }

@@ -33,10 +33,12 @@ public sealed class TradingTestDatabase : IDisposable
         var portfolioService = new PortfolioService(dbContext, accountService, stockService);
         var orderBookService = new OrderBookService(dbContext);
         var matchingService = new OrderMatchingService(orderBookService);
+        var tradeCreationService = new TradeCreationService(dbContext, matchingService, portfolioService);
 
         return new TradingServices(
             matchingService,
-            new TradeCreationService(dbContext, matchingService, portfolioService));
+            tradeCreationService,
+            new OrderProcessingService(tradeCreationService));
     }
 
     public async Task<TradingScenario> SeedScenarioAsync(
@@ -77,7 +79,8 @@ public sealed class TradingTestDatabase : IDisposable
 
 public sealed record TradingServices(
     OrderMatchingService MatchingService,
-    TradeCreationService TradeCreationService);
+    TradeCreationService TradeCreationService,
+    OrderProcessingService OrderProcessingService);
 
 public sealed record TradingScenario(
     Stock Stock,
