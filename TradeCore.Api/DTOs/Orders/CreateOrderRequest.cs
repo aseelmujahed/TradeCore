@@ -13,8 +13,8 @@ public record CreateOrderRequest(
     [param: RegularExpression(@".*\S.*", ErrorMessage = "StockSymbol cannot be whitespace only.")]
     string StockSymbol,
 
-    [param: EnumDataType(typeof(OrderType), ErrorMessage = "Type must be Buy or Sell.")]
-    OrderType Type,
+    [param: EnumDataType(typeof(OrderType), ErrorMessage = "OrderType must be Buy or Sell.")]
+    OrderType OrderType,
 
     [param: Range(1, int.MaxValue, ErrorMessage = "Quantity must be greater than 0.")]
     int Quantity,

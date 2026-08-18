@@ -14,19 +14,29 @@ public sealed class OrderMatchingService
     public async Task<OrderMatch?> FindBestMatchAsync(Guid stockId, CancellationToken cancellationToken = default)
     {
         var orderBook = await _orderBookService.GetOrderBookAsync(stockId, cancellationToken);
-        var buyOrder = orderBook.BuyOrders.FirstOrDefault();
-        var sellOrder = orderBook.SellOrders.FirstOrDefault();
-
-        if (buyOrder is null || sellOrder is null || buyOrder.Price < sellOrder.Price)
+        foreach (var buyOrder in orderBook.BuyOrders)
         {
-            return null;
+            foreach (var sellOrder in orderBook.SellOrders)
+            {
+                if (buyOrder.Price < sellOrder.Price)
+                {
+                    break;
+                }
+
+                if (buyOrder.AccountId == sellOrder.AccountId)
+                {
+                    continue;
+                }
+
+                return new OrderMatch(
+                    buyOrder,
+                    sellOrder,
+                    Math.Min(buyOrder.Quantity, sellOrder.Quantity),
+                    GetMatchPrice(buyOrder, sellOrder));
+            }
         }
 
-        return new OrderMatch(
-            buyOrder,
-            sellOrder,
-            Math.Min(buyOrder.Quantity, sellOrder.Quantity),
-            GetMatchPrice(buyOrder, sellOrder));
+        return null;
     }
 
     private static decimal GetMatchPrice(Order buyOrder, Order sellOrder)

@@ -26,7 +26,7 @@ public class OrdersController : ControllerBase
             var order = await _orderService.CreateOrderAsync(
                 request.AccountId,
                 request.StockSymbol.Trim(),
-                request.Type,
+                request.OrderType,
                 request.Quantity,
                 request.Price,
                 cancellationToken);

@@ -170,6 +170,38 @@ public sealed class TradeExecutionTests
         AssertUnchangedAfterRejectedExecution(verificationContext, buyerId, sellerId, buyOrderId, sellOrderId, stockId, 1_000m, 3);
     }
 
+    [Fact]
+    public async Task CreateTrade_WhenOnlyCompatiblePairIsSelfOwned_DoesNotMutatePersistedState()
+    {
+        using var database = new TradingTestDatabase();
+        Guid buyerId;
+        Guid buyOrderId;
+        Guid selfSellId;
+        Guid stockId;
+
+        await using (var dbContext = database.CreateContext())
+        {
+            var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 450m, sellPrice: 500m, sellerShares: 10);
+            var selfSell = new TradeCore.Console.Models.Order(
+                Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Sell, 2, 440m);
+            dbContext.Orders.Add(selfSell);
+            await dbContext.SaveChangesAsync();
+            (buyerId, buyOrderId, selfSellId, stockId) = (scenario.Buyer.Id, scenario.BuyOrder.Id, selfSell.Id, scenario.Stock.Id);
+
+            var trade = await database.CreateServices(dbContext).TradeCreationService.CreateTradeAsync(stockId);
+            Assert.Null(trade);
+        }
+
+        await using var verificationContext = database.CreateContext();
+        Assert.Equal(1_000m, (await verificationContext.Accounts.SingleAsync(account => account.Id == buyerId)).Balance);
+        Assert.Equal(OrderStatus.Pending, (await verificationContext.Orders.SingleAsync(order => order.Id == buyOrderId)).Status);
+        Assert.Equal(4, (await verificationContext.Orders.SingleAsync(order => order.Id == buyOrderId)).Quantity);
+        Assert.Equal(OrderStatus.Pending, (await verificationContext.Orders.SingleAsync(order => order.Id == selfSellId)).Status);
+        Assert.Equal(2, (await verificationContext.Orders.SingleAsync(order => order.Id == selfSellId)).Quantity);
+        Assert.Empty(await verificationContext.Trades.ToListAsync());
+        Assert.Empty(await verificationContext.PortfolioPositions.Where(position => position.AccountId == buyerId && position.StockId == stockId).ToListAsync());
+    }
+
     private static void AssertUnchangedAfterRejectedExecution(
         TradeCore.Console.Data.TradeCoreDbContext dbContext,
         Guid buyerId,

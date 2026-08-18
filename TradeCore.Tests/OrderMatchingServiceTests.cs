@@ -1,5 +1,6 @@
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace TradeCore.Tests;
 
@@ -71,5 +72,38 @@ public sealed class OrderMatchingServiceTests
         Assert.NotNull(match);
         Assert.Equal(scenario.BuyOrder.Id, match.BuyOrder.Id);
         Assert.Equal(scenario.SellOrder.Id, match.SellOrder.Id);
+    }
+
+    [Fact]
+    public async Task FindBestMatch_WhenOnlyCompatibleOrdersBelongToSameAccount_ReturnsNull()
+    {
+        using var database = new TradingTestDatabase();
+        await using var dbContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 450m, sellPrice: 500m);
+        var selfSell = new Order(Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Sell, 2, 440m);
+        dbContext.Orders.Add(selfSell);
+        await dbContext.SaveChangesAsync();
+
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
+
+        Assert.Null(match);
+    }
+
+    [Fact]
+    public async Task FindBestMatch_SkipsSelfOwnedBestSell_AndSelectsNextEligibleCounterparty()
+    {
+        using var database = new TradingTestDatabase();
+        await using var dbContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 450m, sellPrice: 445m);
+        var selfSell = new Order(Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Sell, 2, 440m);
+        dbContext.Orders.Add(selfSell);
+        await dbContext.SaveChangesAsync();
+
+        var match = await database.CreateServices(dbContext).MatchingService.FindBestMatchAsync(scenario.Stock.Id);
+
+        Assert.NotNull(match);
+        Assert.Equal(scenario.BuyOrder.Id, match.BuyOrder.Id);
+        Assert.Equal(scenario.SellOrder.Id, match.SellOrder.Id);
+        Assert.NotEqual(match.BuyOrder.AccountId, match.SellOrder.AccountId);
     }
 }
