@@ -80,6 +80,27 @@ public class PortfolioService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task AddExternalSharesAsync(
+        Guid accountId,
+        Guid stockId,
+        int quantity,
+        decimal averagePrice,
+        CancellationToken cancellationToken = default)
+    {
+        var position = await _dbContext.PortfolioPositions.SingleOrDefaultAsync(
+            position => position.AccountId == accountId && position.StockId == stockId,
+            cancellationToken);
+
+        if (position is null)
+        {
+            _dbContext.PortfolioPositions.Add(new PortfolioPosition(
+                Guid.NewGuid(), accountId, stockId, quantity, averagePrice));
+            return;
+        }
+
+        position.AddShares(quantity, averagePrice);
+    }
+
     public async Task<IReadOnlyList<PortfolioPosition>> GetPortfolioPositionsAsync(
         Guid accountId,
         CancellationToken cancellationToken = default)

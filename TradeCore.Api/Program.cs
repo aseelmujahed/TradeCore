@@ -15,7 +15,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddDbContext<TradeCoreDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(
+        connectionString,
+        npgsqlOptions => npgsqlOptions.MigrationsAssembly(typeof(Program).Assembly.GetName().Name)));
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -32,6 +34,7 @@ builder.Services.AddScoped<TradeCreationService>();
 builder.Services.AddScoped<OrderProcessingService>();
 builder.Services.AddScoped<TradeHistoryService>();
 builder.Services.AddScoped<PortfolioService>();
+builder.Services.AddScoped<PortfolioTransferService>();
 
 var app = builder.Build();
 

@@ -121,6 +121,26 @@ namespace TradeCore.Api.Migrations
                     b.ToTable("PortfolioPositions", (string)null);
                 });
 
+            modelBuilder.Entity("TradeCore.Console.Models.PortfolioTransfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId").HasColumnType("uuid");
+                    b.Property<decimal>("AveragePrice").HasPrecision(18, 4).HasColumnType("numeric(18,4)");
+                    b.Property<DateTime?>("CompletedAt").HasColumnType("timestamp with time zone");
+                    b.Property<DateTime>("CreatedAt").HasColumnType("timestamp with time zone");
+                    b.Property<int>("Quantity").HasColumnType("integer");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)");
+                    b.Property<Guid>("StockId").HasColumnType("uuid");
+
+                    b.HasKey("Id");
+                    b.HasIndex("AccountId");
+                    b.HasIndex("StockId");
+                    b.ToTable("PortfolioTransfers", (string)null);
+                });
+
             modelBuilder.Entity("TradeCore.Console.Models.Stock", b =>
                 {
                     b.Property<Guid>("Id")
@@ -237,6 +257,21 @@ namespace TradeCore.Api.Migrations
                 });
 
             modelBuilder.Entity("TradeCore.Console.Models.PortfolioPosition", b =>
+                {
+                    b.HasOne("TradeCore.Console.Models.Account", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TradeCore.Console.Models.Stock", null)
+                        .WithMany()
+                        .HasForeignKey("StockId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TradeCore.Console.Models.PortfolioTransfer", b =>
                 {
                     b.HasOne("TradeCore.Console.Models.Account", null)
                         .WithMany()

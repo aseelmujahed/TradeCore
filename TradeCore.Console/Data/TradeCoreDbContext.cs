@@ -18,6 +18,8 @@ public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> opti
 
     public DbSet<PortfolioPosition> PortfolioPositions => Set<PortfolioPosition>();
 
+    public DbSet<PortfolioTransfer> PortfolioTransfers => Set<PortfolioTransfer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<User>(entity =>
@@ -116,6 +118,22 @@ public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> opti
                 .WithMany()
                 .HasForeignKey(position => position.StockId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PortfolioTransfer>(entity =>
+        {
+            entity.ToTable("PortfolioTransfers");
+            entity.HasKey(transfer => transfer.Id);
+            entity.Property(transfer => transfer.AccountId).IsRequired();
+            entity.Property(transfer => transfer.StockId).IsRequired();
+            entity.Property(transfer => transfer.Quantity).IsRequired();
+            entity.Property(transfer => transfer.AveragePrice).HasPrecision(18, 4);
+            entity.Property(transfer => transfer.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(transfer => transfer.CreatedAt).IsRequired();
+            entity.HasOne<Account>().WithMany().HasForeignKey(transfer => transfer.AccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<Stock>().WithMany().HasForeignKey(transfer => transfer.StockId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(transfer => transfer.AccountId);
+            entity.HasIndex(transfer => transfer.StockId);
         });
     }
 }
