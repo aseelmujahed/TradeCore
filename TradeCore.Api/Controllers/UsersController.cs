@@ -98,6 +98,35 @@ public class UsersController : ControllerBase
         return Ok(ToResponse(account));
     }
 
+    [HttpPost("{userId:guid}/account/deposit")]
+    public async Task<ActionResult<AccountResponse>> Deposit(
+        Guid userId,
+        DepositRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Amount <= 0)
+        {
+            return BadRequest("Amount must be greater than 0.");
+        }
+
+        if (await _userService.GetUserAsync(userId, cancellationToken) is null)
+        {
+            return NotFound();
+        }
+
+        var account = await _accountService.GetAccountByUserIdAsync(userId, cancellationToken);
+
+        if (account is null)
+        {
+            return NotFound($"Account for user '{userId}' was not found.");
+        }
+
+        await _accountService.DepositAsync(account.Id, request.Amount, cancellationToken);
+        var updatedAccount = await _accountService.GetAccountAsync(account.Id, cancellationToken);
+
+        return Ok(ToResponse(updatedAccount));
+    }
+
     private static UserResponse ToResponse(User user)
     {
         return new UserResponse(user.Id, user.Username, user.Email, user.CreatedAt);
