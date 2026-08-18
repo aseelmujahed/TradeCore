@@ -26,7 +26,9 @@ public sealed class TradingTestDatabase : IDisposable
 
     public TradeCoreDbContext CreateContext() => new(_options);
 
-    public TradingServices CreateServices(TradeCoreDbContext dbContext)
+    public TradingServices CreateServices(
+        TradeCoreDbContext dbContext,
+        StockProcessingLockRegistry? stockProcessingLocks = null)
     {
         var accountService = new AccountService(dbContext);
         var stockService = new StockService(dbContext);
@@ -38,7 +40,7 @@ public sealed class TradingTestDatabase : IDisposable
         return new TradingServices(
             matchingService,
             tradeCreationService,
-            new OrderProcessingService(tradeCreationService));
+            new OrderProcessingService(tradeCreationService, stockProcessingLocks ?? new StockProcessingLockRegistry()));
     }
 
     public async Task<TradingScenario> SeedScenarioAsync(

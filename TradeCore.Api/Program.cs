@@ -31,6 +31,7 @@ builder.Services.AddScoped<OrderService>();
 builder.Services.AddScoped<OrderBookService>();
 builder.Services.AddScoped<OrderMatchingService>();
 builder.Services.AddScoped<TradeCreationService>();
+builder.Services.AddSingleton<StockProcessingLockRegistry>();
 builder.Services.AddScoped<OrderProcessingService>();
 builder.Services.AddScoped<TradeHistoryService>();
 builder.Services.AddScoped<PortfolioService>();
