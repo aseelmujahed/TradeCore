@@ -16,7 +16,8 @@ public sealed class OrderMessageHandlerTests
         await using var setupContext = database.CreateContext();
         var scenario = await database.SeedScenarioAsync(setupContext, sellerShares: 4, buyQuantity: 4, sellQuantity: 4);
         var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
-        var handler = CreateHandler(scopes);
+        var publisher = new RecordingTradingEventPublisher();
+        var handler = CreateHandler(scopes, publisher);
 
         await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
         Assert.Equal(1, scopes.CreatedScopes);
@@ -24,6 +25,18 @@ public sealed class OrderMessageHandlerTests
         Assert.Single(verificationContext.Trades);
         Assert.Equal(0, verificationContext.Orders.Single(order => order.Id == scenario.BuyOrder.Id).Quantity);
         Assert.Equal(800m, verificationContext.Accounts.Single(account => account.Id == scenario.Buyer.Id).Balance);
+        var tradeEvent = Assert.Single(publisher.TradeEvents);
+        Assert.Equal(tradeEvent.EventId, tradeEvent.TradeId);
+        Assert.Equal(scenario.BuyOrder.Id, tradeEvent.BuyOrderId);
+        Assert.Equal(scenario.SellOrder.Id, tradeEvent.SellOrderId);
+        Assert.Equal(scenario.Stock.Id, tradeEvent.StockId);
+        Assert.Equal(4, tradeEvent.Quantity);
+        Assert.Equal(50m, tradeEvent.Price);
+        var priceEvent = Assert.Single(publisher.StockPriceEvents);
+        Assert.Equal(tradeEvent.TradeId, priceEvent.EventId);
+        Assert.Equal(scenario.Stock.Id, priceEvent.StockId);
+        Assert.Equal(scenario.Stock.Symbol, priceEvent.Symbol);
+        Assert.Equal(50m, priceEvent.Price);
     }
 
     [Fact]
@@ -79,7 +92,9 @@ public sealed class OrderMessageHandlerTests
         Assert.Empty(verificationContext.Trades);
     }
 
-    private static OrderMessageHandler CreateHandler(IServiceScopeFactory scopes) => new(scopes);
+    private static OrderMessageHandler CreateHandler(
+        IServiceScopeFactory scopes,
+        ITradingEventPublisher? publisher = null) => new(scopes, publisher);
 
     private static byte[] Serialize(Guid orderId) =>
         JsonSerializer.SerializeToUtf8Bytes(new OrderSubmittedMessage(orderId), new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -125,5 +140,23 @@ public sealed class OrderMessageHandlerTests
                 : null;
 
         public void Dispose() => dbContext.Dispose();
+    }
+
+    private sealed class RecordingTradingEventPublisher : ITradingEventPublisher
+    {
+        public List<TradeExecutedEvent> TradeEvents { get; } = [];
+        public List<StockPriceUpdatedEvent> StockPriceEvents { get; } = [];
+
+        public Task PublishAsync(TradeExecutedEvent message, CancellationToken cancellationToken)
+        {
+            TradeEvents.Add(message);
+            return Task.CompletedTask;
+        }
+
+        public Task PublishAsync(StockPriceUpdatedEvent message, CancellationToken cancellationToken)
+        {
+            StockPriceEvents.Add(message);
+            return Task.CompletedTask;
+        }
     }
 }

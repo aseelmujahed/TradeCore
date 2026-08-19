@@ -28,6 +28,7 @@ public static class Program
         builder.Services.AddScoped<TradeCreationService>();
         builder.Services.AddSingleton<StockProcessingLockRegistry>();
         builder.Services.AddScoped<OrderProcessingService>();
+        builder.Services.AddSingleton<ITradingEventPublisher, RabbitMqTradingEventPublisher>();
         builder.Services.AddSingleton<IOrderMessageHandler, OrderMessageHandler>();
         builder.Services.AddSingleton<RabbitMqOrderDeliveryTransport>();
         builder.Services.AddSingleton<IOrderMessageDeliveryTransport>(serviceProvider =>

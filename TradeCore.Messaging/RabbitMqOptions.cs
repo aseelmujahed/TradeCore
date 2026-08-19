@@ -20,6 +20,10 @@ public sealed class RabbitMqOptions
 
     public string OrdersQueue { get; init; } = string.Empty;
 
+    public string TradeExecutedQueue { get; init; } = "trade-executed";
+
+    public string StockPriceUpdatedQueue { get; init; } = "stock-price-updated";
+
     [Range(1, int.MaxValue)]
     public int MaxProcessingAttempts { get; init; } = 3;
 
@@ -42,6 +46,8 @@ public sealed class RabbitMqOptionsValidator : IValidateOptions<RabbitMqOptions>
         if (string.IsNullOrWhiteSpace(options.UserName)) failures.Add("RabbitMq:UserName is required.");
         if (string.IsNullOrWhiteSpace(options.Password)) failures.Add("RabbitMq:Password is required.");
         if (string.IsNullOrWhiteSpace(options.OrdersQueue)) failures.Add("RabbitMq:OrdersQueue is required.");
+        if (string.IsNullOrWhiteSpace(options.TradeExecutedQueue)) failures.Add("RabbitMq:TradeExecutedQueue is required.");
+        if (string.IsNullOrWhiteSpace(options.StockPriceUpdatedQueue)) failures.Add("RabbitMq:StockPriceUpdatedQueue is required.");
         if (options.MaxProcessingAttempts < 1) failures.Add("RabbitMq:MaxProcessingAttempts must be at least 1.");
         if (options.RetryDelayMilliseconds < 1) failures.Add("RabbitMq:RetryDelayMilliseconds must be at least 1.");
 

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.DTOs.Stocks;
 using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
@@ -17,22 +18,32 @@ public sealed class StockPriceSignalRIntegrationTests : IClassFixture<TradeCoreA
 
     public StockPriceSignalRIntegrationTests(TradeCoreApiFactory factory) => _factory = factory;
 
-    [Fact(Skip = "Task 36 moves API-side matching and StockPriceUpdated broadcasts to the future consumer.")]
+    [Fact]
     public async Task MatchingOrder_UpdatesPersistedStockPriceAndBroadcastsExecutionPrice()
     {
         var scenario = await SeedScenarioAsync(sellPrice: 45m);
         var received = new TaskCompletionSource<StockPriceUpdatedResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(update => received.TrySetResult(update));
+        var receivedCount = 0;
+        await using var connection = await ConnectAsync(update =>
+        {
+            if (update.StockId == scenario.StockId)
+            {
+                Interlocked.Increment(ref receivedCount);
+                received.TrySetResult(update);
+            }
+        });
 
         var response = await SubmitBuyOrderAsync(scenario, 4, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Null(await WaitForProcessingAsync(response));
         var update = await received.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var stock = await GetStockAsync(scenario.StockId);
         Assert.Equal(scenario.StockId, update.StockId);
         Assert.Equal(scenario.StockSymbol, update.Symbol);
         Assert.Equal(45m, update.Price);
         Assert.Equal(45m, stock.CurrentPrice);
+        Assert.Equal(1, Volatile.Read(ref receivedCount));
     }
 
     [Fact]
@@ -40,12 +51,15 @@ public sealed class StockPriceSignalRIntegrationTests : IClassFixture<TradeCoreA
     {
         var scenario = await SeedScenarioAsync(sellPrice: 60m);
         var received = new TaskCompletionSource<StockPriceUpdatedResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(update => received.TrySetResult(update));
+        await using var connection = await ConnectAsync(update =>
+        {
+            if (update.StockId == scenario.StockId) received.TrySetResult(update);
+        });
 
         var response = await SubmitBuyOrderAsync(scenario, 4, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        await Task.Delay(300);
+        Assert.Null(await WaitForProcessingAsync(response));
         Assert.False(received.Task.IsCompleted);
         Assert.Equal(20m, (await GetStockAsync(scenario.StockId)).CurrentPrice);
     }
@@ -99,6 +113,13 @@ public sealed class StockPriceSignalRIntegrationTests : IClassFixture<TradeCoreA
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
         return await dbContext.Stocks.SingleAsync(stock => stock.Id == stockId);
+    }
+
+    private async Task<Exception?> WaitForProcessingAsync(HttpResponseMessage response)
+    {
+        var order = await response.Content.ReadFromJsonAsync<OrderResponse>();
+        Assert.NotNull(order);
+        return await _factory.WaitForOrderProcessingAsync(order.Id, TimeSpan.FromSeconds(3));
     }
 
     private sealed record TradingScenario(Guid StockId, string StockSymbol, Guid BuyerAccountId);

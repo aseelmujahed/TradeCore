@@ -39,9 +39,12 @@ builder.Services.AddSingleton<RabbitMqConnectionService>();
 builder.Services.AddSingleton<IRabbitMqConnectionService>(serviceProvider =>
     serviceProvider.GetRequiredService<RabbitMqConnectionService>());
 builder.Services.AddHostedService<RabbitMqInitializationService>();
+builder.Services.AddHostedService<RabbitMqTradingEventConsumer>();
 builder.Services.AddScoped<IOrderMessagePublisher, RabbitMqOrderMessagePublisher>();
 builder.Services.AddScoped<ITradeExecutionNotifier, SignalRTradeExecutionNotifier>();
 builder.Services.AddScoped<IStockPriceNotifier, SignalRStockPriceNotifier>();
+builder.Services.AddScoped<TradingEventNotificationHandler>();
+builder.Services.AddSingleton<TradingEventDeduplicator>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<StockService>();

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.DTOs.Trades;
 using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
@@ -18,16 +19,25 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
 
     public TradeExecutedSignalRIntegrationTests(TradeCoreApiFactory factory) => _factory = factory;
 
-    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
+    [Fact]
     public async Task MatchingOrder_BroadcastsPersistedExactFillTrade()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [4]);
         var received = new TaskCompletionSource<TradeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(trade => received.TrySetResult(trade));
+        var receivedCount = 0;
+        await using var connection = await ConnectAsync(trade =>
+        {
+            if (trade.StockId == scenario.StockId)
+            {
+                Interlocked.Increment(ref receivedCount);
+                received.TrySetResult(trade);
+            }
+        });
 
         var response = await SubmitBuyOrderAsync(scenario, 4, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Null(await WaitForProcessingAsync(response));
         var notification = await received.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var persisted = await GetPersistedTradesAsync(scenario.StockId);
         var trade = Assert.Single(persisted);
@@ -38,25 +48,35 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Equal(trade.Quantity, notification.Quantity);
         Assert.Equal(trade.Price, notification.Price);
         Assert.Equal(trade.ExecutedAt, notification.ExecutedAt);
+        Assert.Equal(1, Volatile.Read(ref receivedCount));
     }
 
-    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
+    [Fact]
     public async Task PartialFill_BroadcastsOneEventForTheCreatedTrade()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [4]);
         var received = new TaskCompletionSource<TradeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(trade => received.TrySetResult(trade));
+        var receivedCount = 0;
+        await using var connection = await ConnectAsync(trade =>
+        {
+            if (trade.StockId == scenario.StockId)
+            {
+                Interlocked.Increment(ref receivedCount);
+                received.TrySetResult(trade);
+            }
+        });
 
         var response = await SubmitBuyOrderAsync(scenario, 10, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Null(await WaitForProcessingAsync(response));
         var notification = await received.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(4, notification.Quantity);
-        await Task.Delay(200);
         Assert.Single(await GetPersistedTradesAsync(scenario.StockId));
+        Assert.Equal(1, Volatile.Read(ref receivedCount));
     }
 
-    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
+    [Fact]
     public async Task IncomingOrderMatchingMultipleOppositeOrders_BroadcastsEveryDistinctTradeOnce()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [2, 3]);
@@ -64,6 +84,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         var allReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var connection = await ConnectAsync(trade =>
         {
+            if (trade.StockId != scenario.StockId) return;
             received.Enqueue(trade);
             if (received.Count == 2)
             {
@@ -74,6 +95,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         var response = await SubmitBuyOrderAsync(scenario, 5, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Null(await WaitForProcessingAsync(response));
         await allReceived.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var persisted = await GetPersistedTradesAsync(scenario.StockId);
         Assert.Equal(2, persisted.Count);
@@ -92,45 +114,70 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [4], sellPrice: 60m);
         var received = new TaskCompletionSource<TradeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(trade => received.TrySetResult(trade));
+        await using var connection = await ConnectAsync(trade =>
+        {
+            if (trade.StockId == scenario.StockId) received.TrySetResult(trade);
+        });
 
         var response = await SubmitBuyOrderAsync(scenario, 4, 50m);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        await Task.Delay(300);
+        Assert.Null(await WaitForProcessingAsync(response));
         Assert.False(received.Task.IsCompleted);
         Assert.Empty(await GetPersistedTradesAsync(scenario.StockId));
     }
 
-    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
+    [Fact]
     public async Task FailedMultiTradeProcessing_RollsBackAndDoesNotBroadcastTradeExecuted()
     {
         var scenario = await SeedFailedMultiTradeScenarioAsync();
         var received = new TaskCompletionSource<TradeResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await using var connection = await ConnectAsync(trade => received.TrySetResult(trade));
+        await using var connection = await ConnectAsync(trade =>
+        {
+            if (trade.StockId == scenario.StockId) received.TrySetResult(trade);
+        });
 
         var response = await SubmitSellOrderAsync(scenario, 2, 50m);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        await Task.Delay(300);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(await WaitForProcessingAsync(response));
         Assert.False(received.Task.IsCompleted);
         Assert.Empty(await GetPersistedTradesAsync(scenario.StockId));
     }
 
-    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
+    [Fact]
     public async Task ConcurrentOrderProcessing_BroadcastsEachPersistedTradeOnlyOnce()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [6]);
         var received = new ConcurrentQueue<TradeResponse>();
-        await using var connection = await ConnectAsync(trade => received.Enqueue(trade));
+        var notificationsReceived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var connectionClosed = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var notificationCount = 0;
+        await using var connection = await ConnectAsync(trade =>
+        {
+            if (trade.StockId != scenario.StockId) return;
+
+            received.Enqueue(trade);
+            if (Interlocked.Increment(ref notificationCount) == 2)
+            {
+                notificationsReceived.TrySetResult();
+            }
+        });
+        connection.Closed += exception =>
+        {
+            connectionClosed.TrySetResult(exception);
+            return Task.CompletedTask;
+        };
 
         var responses = await Task.WhenAll(
             SubmitBuyOrderAsync(scenario, 3, 50m),
             SubmitBuyOrderAsync(scenario, 3, 50m));
 
         Assert.All(responses, response => Assert.Equal(HttpStatusCode.Created, response.StatusCode));
-        var persisted = await WaitForPersistedTradesAsync(scenario.StockId, expectedCount: 2);
-        await Task.Delay(300);
+        Assert.All(await Task.WhenAll(responses.Select(WaitForProcessingAsync)), error => Assert.Null(error));
+        await WaitForNotificationsAsync(notificationsReceived, connectionClosed);
+        var persisted = await GetPersistedTradesAsync(scenario.StockId);
+        Assert.Equal(2, Volatile.Read(ref notificationCount));
         Assert.Equal(persisted.Count, received.Count);
         Assert.Equal(persisted.Count, received.Select(trade => trade.Id).Distinct().Count());
         Assert.Equal(
@@ -233,20 +280,24 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         return await dbContext.Stocks.SingleAsync(stock => stock.Id == stockId);
     }
 
-    private async Task<IReadOnlyList<Trade>> WaitForPersistedTradesAsync(Guid stockId, int expectedCount)
+    private async Task<Exception?> WaitForProcessingAsync(HttpResponseMessage response)
     {
-        for (var attempt = 0; attempt < 30; attempt++)
+        var order = await response.Content.ReadFromJsonAsync<OrderResponse>();
+        Assert.NotNull(order);
+        return await _factory.WaitForOrderProcessingAsync(order.Id, TimeSpan.FromSeconds(3));
+    }
+
+    private static async Task WaitForNotificationsAsync(
+        TaskCompletionSource notificationsReceived,
+        TaskCompletionSource<Exception?> connectionClosed)
+    {
+        var completed = await Task.WhenAny(notificationsReceived.Task, connectionClosed.Task)
+            .WaitAsync(TimeSpan.FromSeconds(3));
+        if (completed == connectionClosed.Task)
         {
-            var trades = await GetPersistedTradesAsync(stockId);
-            if (trades.Count == expectedCount)
-            {
-                return trades;
-            }
-
-            await Task.Delay(100);
+            throw new Xunit.Sdk.XunitException(
+                $"SignalR connection closed before both TradeExecuted notifications arrived: {connectionClosed.Task.Result?.Message ?? "no error"}.");
         }
-
-        return await GetPersistedTradesAsync(stockId);
     }
 
     private sealed record TradingScenario(Guid StockId, string StockSymbol, Guid BuyerAccountId);
