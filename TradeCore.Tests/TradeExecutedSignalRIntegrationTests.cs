@@ -82,6 +82,9 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Equal(
             persisted.Select(trade => trade.Id).OrderBy(id => id),
             received.Select(trade => trade.Id).OrderBy(id => id));
+        Assert.Equal(
+            persisted.Last().Price,
+            (await GetPersistedStockAsync(scenario.StockId)).CurrentPrice);
     }
 
     [Fact]
@@ -221,6 +224,13 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         await using var scope = _factory.Services.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
         return await dbContext.Trades.Where(trade => trade.StockId == stockId).ToListAsync();
+    }
+
+    private async Task<Stock> GetPersistedStockAsync(Guid stockId)
+    {
+        await using var scope = _factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
+        return await dbContext.Stocks.SingleAsync(stock => stock.Id == stockId);
     }
 
     private async Task<IReadOnlyList<Trade>> WaitForPersistedTradesAsync(Guid stockId, int expectedCount)

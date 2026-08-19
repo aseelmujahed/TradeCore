@@ -45,7 +45,14 @@ public sealed class OrderProcessingService
             trades.Add(trade);
         }
 
+        StockPriceUpdate? stockPriceUpdate = null;
+        if (trades.Count > 0)
+        {
+            var stock = await _dbContext.Stocks.SingleAsync(stock => stock.Id == submittedOrder.StockId, cancellationToken);
+            stockPriceUpdate = new StockPriceUpdate(stock.Id, stock.Symbol, stock.CurrentPrice);
+        }
+
         await transaction.CommitAsync(cancellationToken);
-        return new OrderProcessingResult(submittedOrder, trades);
+        return new OrderProcessingResult(submittedOrder, trades, stockPriceUpdate);
     }
 }

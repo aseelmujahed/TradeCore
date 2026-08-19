@@ -28,6 +28,7 @@ builder.Services.AddControllers()
     });
 builder.Services.AddSignalR();
 builder.Services.AddScoped<ITradeExecutionNotifier, SignalRTradeExecutionNotifier>();
+builder.Services.AddScoped<IStockPriceNotifier, SignalRStockPriceNotifier>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<StockService>();

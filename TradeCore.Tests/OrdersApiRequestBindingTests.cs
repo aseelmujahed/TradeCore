@@ -66,11 +66,17 @@ public sealed class OrdersApiRequestBindingTests
             new OrderService(context, accountService, stockService),
             new OrderProcessingService(context, tradeCreationService),
             new NoOpTradeExecutionNotifier(),
+            new NoOpStockPriceNotifier(),
             NullLogger<OrdersController>.Instance);
     }
 
     private sealed class NoOpTradeExecutionNotifier : ITradeExecutionNotifier
     {
         public Task NotifyTradeExecutedAsync(TradeCore.Api.DTOs.Trades.TradeResponse trade, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class NoOpStockPriceNotifier : IStockPriceNotifier
+    {
+        public Task NotifyStockPriceUpdatedAsync(TradeCore.Api.DTOs.Stocks.StockPriceUpdatedResponse update, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Orders;
+using TradeCore.Api.DTOs.Stocks;
 using TradeCore.Api.DTOs.Trades;
 using TradeCore.Api.Notifications;
 using TradeCore.Console.Models;
@@ -14,17 +15,20 @@ public class OrdersController : ControllerBase
     private readonly OrderService _orderService;
     private readonly OrderProcessingService _orderProcessingService;
     private readonly ITradeExecutionNotifier _tradeExecutionNotifier;
+    private readonly IStockPriceNotifier _stockPriceNotifier;
     private readonly ILogger<OrdersController> _logger;
 
     public OrdersController(
         OrderService orderService,
         OrderProcessingService orderProcessingService,
         ITradeExecutionNotifier tradeExecutionNotifier,
+        IStockPriceNotifier stockPriceNotifier,
         ILogger<OrdersController> logger)
     {
         _orderService = orderService;
         _orderProcessingService = orderProcessingService;
         _tradeExecutionNotifier = tradeExecutionNotifier;
+        _stockPriceNotifier = stockPriceNotifier;
         _logger = logger;
     }
 
@@ -56,6 +60,26 @@ public class OrdersController : ControllerBase
                         exception,
                         "Failed to broadcast TradeExecuted notification for committed trade {TradeId}.",
                         trade.Id);
+                }
+            }
+
+            if (processingResult.StockPriceUpdate is not null)
+            {
+                try
+                {
+                    await _stockPriceNotifier.NotifyStockPriceUpdatedAsync(
+                        new StockPriceUpdatedResponse(
+                            processingResult.StockPriceUpdate.StockId,
+                            processingResult.StockPriceUpdate.Symbol,
+                            processingResult.StockPriceUpdate.Price),
+                        cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(
+                        exception,
+                        "Failed to broadcast StockPriceUpdated notification for committed stock {StockId}.",
+                        processingResult.StockPriceUpdate.StockId);
                 }
             }
 

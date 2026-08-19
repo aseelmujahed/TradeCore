@@ -37,4 +37,14 @@ public class Stock
         Name = name;
         CurrentPrice = currentPrice;
     }
+
+    public void UpdateCurrentPrice(decimal price)
+    {
+        if (price < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(price), "Current price cannot be negative.");
+        }
+
+        CurrentPrice = price;
+    }
 }

@@ -31,6 +31,7 @@ public sealed class TradeCreationService
 
         var buyOrder = await _dbContext.Orders.SingleAsync(order => order.Id == orderMatch.BuyOrder.Id, cancellationToken);
         var sellOrder = await _dbContext.Orders.SingleAsync(order => order.Id == orderMatch.SellOrder.Id, cancellationToken);
+        var stock = await _dbContext.Stocks.SingleAsync(stock => stock.Id == stockId, cancellationToken);
         var buyerAccount = await _dbContext.Accounts.SingleAsync(account => account.Id == buyOrder.AccountId, cancellationToken);
         var sellerAccount = await _dbContext.Accounts.SingleAsync(account => account.Id == sellOrder.AccountId, cancellationToken);
         var tradeValue = orderMatch.MatchPrice * orderMatch.MatchedQuantity;
@@ -70,6 +71,7 @@ public sealed class TradeCreationService
             orderMatch.MatchedQuantity,
             orderMatch.MatchPrice);
 
+        stock.UpdateCurrentPrice(trade.Price);
         _dbContext.Trades.Add(trade);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
