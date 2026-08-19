@@ -6,6 +6,7 @@ using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.Messaging;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
+using TradeCore.Messaging;
 
 namespace TradeCore.Tests;
 

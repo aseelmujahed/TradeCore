@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.Messaging;
+using TradeCore.Messaging;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
 

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using TradeCore.Messaging;
 
 namespace TradeCore.Api.Messaging;
 

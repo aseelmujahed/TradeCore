@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="TradeCore.Api/TradeCore.Api.csproj" />
   <Project Path="TradeCore.Console/TradeCore.Console.csproj" />
+  <Project Path="TradeCore.Messaging/TradeCore.Messaging.csproj" />
   <Project Path="TradeCore.Tests/TradeCore.Tests.csproj" />
+  <Project Path="TradeCore.TradingEngine/TradeCore.TradingEngine.csproj" />
 </Solution>

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Configuration;
-using TradeCore.Api.Messaging;
+using TradeCore.Messaging;
 
 namespace TradeCore.Tests;
 

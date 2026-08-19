@@ -6,6 +6,7 @@ using TradeCore.Api.Notifications;
 using TradeCore.Api.Data;
 using TradeCore.Api.ExceptionHandling;
 using TradeCore.Api.Messaging;
+using TradeCore.Messaging;
 using TradeCore.Console.Data;
 using TradeCore.Console.Services;
 

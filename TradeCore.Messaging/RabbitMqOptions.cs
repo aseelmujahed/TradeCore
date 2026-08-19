@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.Extensions.Options;
 
-namespace TradeCore.Api.Messaging;
+namespace TradeCore.Messaging;
 
 public sealed class RabbitMqOptions
 {

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using TradeCore.Api.Messaging;
 using TradeCore.Console.Data;
+using TradeCore.Messaging;
 
 namespace TradeCore.Tests;
 

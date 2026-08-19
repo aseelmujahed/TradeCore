@@ -1,4 +1,5 @@
 using RabbitMQ.Client;
+using TradeCore.Messaging;
 
 namespace TradeCore.Api.Messaging;
 

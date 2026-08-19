@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.Messaging;
+using TradeCore.Messaging;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 

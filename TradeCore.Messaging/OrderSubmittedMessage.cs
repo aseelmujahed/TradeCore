@@ -1,3 +1,3 @@
-namespace TradeCore.Api.Messaging;
+namespace TradeCore.Messaging;
 
 public sealed record OrderSubmittedMessage(Guid OrderId);

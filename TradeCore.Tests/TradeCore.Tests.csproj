@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\TradeCore.Api\TradeCore.Api.csproj" />
     <ProjectReference Include="..\TradeCore.Console\TradeCore.Console.csproj" />
+    <ProjectReference Include="..\TradeCore.TradingEngine\TradeCore.TradingEngine.csproj" />
   </ItemGroup>
 
 </Project>

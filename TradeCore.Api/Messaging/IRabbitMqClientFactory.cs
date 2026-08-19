@@ -1,3 +1,5 @@
+using TradeCore.Messaging;
+
 namespace TradeCore.Api.Messaging;
 
 public interface IRabbitMqClientFactory
