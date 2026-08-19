@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.Messaging;
@@ -103,7 +104,8 @@ public sealed class OrderSubmissionTests
         IOrderMessagePublisher publisher) =>
         new(
             new OrderService(dbContext, new AccountService(dbContext), new StockService(dbContext)),
-            publisher);
+            publisher,
+            NullLogger<OrdersController>.Instance);
 
     private sealed class RecordingOrderMessagePublisher : IOrderMessagePublisher
     {

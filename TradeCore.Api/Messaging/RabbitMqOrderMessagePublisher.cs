@@ -21,11 +21,11 @@ public sealed class RabbitMqOrderMessagePublisher(
             Persistent: true,
             MessageId: message.OrderId.ToString());
 
-        logger.LogInformation("Publishing submitted order {OrderId} to RabbitMQ.", message.OrderId);
+        logger.LogDebug("Publishing submitted order {OrderId} to RabbitMQ.", message.OrderId);
         try
         {
             await connectionService.PublishAsync(publishedMessage, cancellationToken);
-            logger.LogInformation("RabbitMQ confirmed submitted order {OrderId}.", message.OrderId);
+            logger.LogDebug("RabbitMQ confirmed submitted order {OrderId}.", message.OrderId);
         }
         catch (Exception exception)
         {

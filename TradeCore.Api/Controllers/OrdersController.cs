@@ -13,13 +13,16 @@ public class OrdersController : ControllerBase
 {
     private readonly OrderService _orderService;
     private readonly IOrderMessagePublisher _orderMessagePublisher;
+    private readonly ILogger<OrdersController> _logger;
 
     public OrdersController(
         OrderService orderService,
-        IOrderMessagePublisher orderMessagePublisher)
+        IOrderMessagePublisher orderMessagePublisher,
+        ILogger<OrdersController> logger)
     {
         _orderService = orderService;
         _orderMessagePublisher = orderMessagePublisher;
+        _logger = logger;
     }
 
     [HttpPost]
@@ -36,6 +39,15 @@ public class OrdersController : ControllerBase
                 cancellationToken);
 
             await _orderMessagePublisher.PublishAsync(new OrderSubmittedMessage(order.Id), cancellationToken);
+
+            _logger.LogInformation(
+                "Order {OrderId} submitted for account {AccountId} and stock {StockId} with type {OrderType}, quantity {Quantity}, and price {Price}.",
+                order.Id,
+                order.AccountId,
+                order.StockId,
+                order.Type,
+                order.Quantity,
+                order.Price);
 
             return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }

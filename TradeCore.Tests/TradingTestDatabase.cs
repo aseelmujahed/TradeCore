@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
@@ -28,19 +30,29 @@ public sealed class TradingTestDatabase : IDisposable
 
     public TradingServices CreateServices(
         TradeCoreDbContext dbContext,
-        StockProcessingLockRegistry? stockProcessingLocks = null)
+        StockProcessingLockRegistry? stockProcessingLocks = null,
+        ILogger<TradeCreationService>? tradeCreationLogger = null,
+        ILogger<OrderProcessingService>? orderProcessingLogger = null)
     {
         var accountService = new AccountService(dbContext);
         var stockService = new StockService(dbContext);
         var portfolioService = new PortfolioService(dbContext, accountService, stockService);
         var orderBookService = new OrderBookService(dbContext);
         var matchingService = new OrderMatchingService(orderBookService);
-        var tradeCreationService = new TradeCreationService(dbContext, matchingService, portfolioService);
+        var tradeCreationService = new TradeCreationService(
+            dbContext,
+            matchingService,
+            portfolioService,
+            tradeCreationLogger ?? NullLogger<TradeCreationService>.Instance);
 
         return new TradingServices(
             matchingService,
             tradeCreationService,
-            new OrderProcessingService(dbContext, tradeCreationService, stockProcessingLocks ?? new StockProcessingLockRegistry()));
+            new OrderProcessingService(
+                dbContext,
+                tradeCreationService,
+                stockProcessingLocks ?? new StockProcessingLockRegistry(),
+                orderProcessingLogger ?? NullLogger<OrderProcessingService>.Instance));
     }
 
     public async Task<TradingScenario> SeedScenarioAsync(

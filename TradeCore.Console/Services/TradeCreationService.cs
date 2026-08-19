@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Console.Data;
 using TradeCore.Console.Models;
 
@@ -9,15 +11,26 @@ public sealed class TradeCreationService
     private readonly TradeCoreDbContext _dbContext;
     private readonly OrderMatchingService _orderMatchingService;
     private readonly PortfolioService _portfolioService;
+    private readonly ILogger<TradeCreationService> _logger;
 
     public TradeCreationService(
         TradeCoreDbContext dbContext,
         OrderMatchingService orderMatchingService,
         PortfolioService portfolioService)
+        : this(dbContext, orderMatchingService, portfolioService, NullLogger<TradeCreationService>.Instance)
+    {
+    }
+
+    public TradeCreationService(
+        TradeCoreDbContext dbContext,
+        OrderMatchingService orderMatchingService,
+        PortfolioService portfolioService,
+        ILogger<TradeCreationService> logger)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _orderMatchingService = orderMatchingService ?? throw new ArgumentNullException(nameof(orderMatchingService));
         _portfolioService = portfolioService ?? throw new ArgumentNullException(nameof(portfolioService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<Trade?> CreateTradeAsync(Guid stockId, CancellationToken cancellationToken = default)
@@ -36,16 +49,48 @@ public sealed class TradeCreationService
         var sellerAccount = await _dbContext.Accounts.SingleAsync(account => account.Id == sellOrder.AccountId, cancellationToken);
         var tradeValue = orderMatch.MatchPrice * orderMatch.MatchedQuantity;
 
-        if (tradeValue > 0)
+        try
         {
-            buyerAccount.EnsureCanDebit(tradeValue);
+            if (tradeValue > 0)
+            {
+                buyerAccount.EnsureCanDebit(tradeValue);
+            }
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Balance settlement rejected for buyer account {BuyerAccountId} against seller account {SellerAccountId} for orders {BuyOrderId} and {SellOrderId}, stock {StockId}, and settlement amount {SettlementAmount}.",
+                buyerAccount.Id,
+                sellerAccount.Id,
+                buyOrder.Id,
+                sellOrder.Id,
+                stockId,
+                tradeValue);
+            throw;
         }
 
-        await _portfolioService.EnsureSufficientSharesAsync(
-            sellerAccount.Id,
-            stockId,
-            orderMatch.MatchedQuantity,
-            cancellationToken);
+        try
+        {
+            await _portfolioService.EnsureSufficientSharesAsync(
+                sellerAccount.Id,
+                stockId,
+                orderMatch.MatchedQuantity,
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is KeyNotFoundException or InvalidOperationException)
+        {
+            _logger.LogWarning(
+                exception,
+                "Portfolio settlement rejected for seller account {SellerAccountId} against buyer account {BuyerAccountId} for orders {BuyOrderId} and {SellOrderId}, stock {StockId}, and quantity {Quantity}.",
+                sellerAccount.Id,
+                buyerAccount.Id,
+                buyOrder.Id,
+                sellOrder.Id,
+                stockId,
+                orderMatch.MatchedQuantity);
+            throw;
+        }
 
         if (tradeValue > 0)
         {

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
 using TradeCore.Api.Messaging;
@@ -60,7 +61,8 @@ public sealed class OrdersApiRequestBindingTests
         var stockService = new StockService(context);
         return new OrdersController(
             new OrderService(context, accountService, stockService),
-            new RecordingOrderMessagePublisher());
+            new RecordingOrderMessagePublisher(),
+            NullLogger<OrdersController>.Instance);
     }
 
     private sealed class RecordingOrderMessagePublisher : IOrderMessagePublisher
