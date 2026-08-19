@@ -46,6 +46,16 @@ public sealed class ApiIntegrationTests : IClassFixture<TradeCoreApiFactory>
     }
 
     [Fact]
+    public async Task HealthCheck_ReturnsOk()
+    {
+        using var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CreateOrder_ValidRequest_ReturnsPendingOrderAndPersistsIt()
     {
         var (user, account) = await CreateUserAndGetAccountAsync();

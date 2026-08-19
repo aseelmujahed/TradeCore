@@ -18,6 +18,7 @@ var connectionString = builder.Configuration.GetConnectionString("TradeCoreDatab
 
 builder.Services.AddOpenApi();
 builder.Services.AddProblemDetails();
+builder.Services.AddHealthChecks();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddDbContext<TradeCoreDbContext>(options =>
     options.UseNpgsql(
@@ -63,7 +64,17 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
+    if (app.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+
     await StockDataSeeder.SeedAsync(dbContext);
+}
+
+if (app.Configuration.GetValue<bool>("Database:ExitAfterMigration"))
+{
+    return;
 }
 
 app.UseExceptionHandler();
@@ -81,6 +92,7 @@ app.UseHttpsRedirection();
 
 app.MapControllers();
 app.MapHub<TradingHub>("/hubs/trading");
+app.MapHealthChecks("/health");
 
 app.Run();
 

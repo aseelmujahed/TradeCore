@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tradecore}
+      POSTGRES_USER: ${POSTGRES_USER:-tradecore}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tradecore-local-password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    user: "999:999"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-tradecore}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-tradecore-local-password}
+    ports:
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  tradecore-migrations:
+    image: tradecore-api:local
+    environment: &tradecore-environment
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__TradeCoreDatabase: Host=postgres;Port=5432;Database=${POSTGRES_DB:-tradecore};Username=${POSTGRES_USER:-tradecore};Password=${POSTGRES_PASSWORD:-tradecore-local-password}
+      RabbitMq__Enabled: "true"
+      RabbitMq__HostName: rabbitmq
+      RabbitMq__Port: "5672"
+      RabbitMq__UserName: ${RABBITMQ_USER:-tradecore}
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-tradecore-local-password}
+      RabbitMq__OrdersQueue: orders
+      RabbitMq__TradeExecutedQueue: trade-executed
+      RabbitMq__StockPriceUpdatedQueue: stock-price-updated
+      RabbitMq__MaxProcessingAttempts: "3"
+      RabbitMq__RetryDelayMilliseconds: "5000"
+      Database__MigrateOnStartup: "true"
+      Database__ExitAfterMigration: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  tradecore-api:
+    image: tradecore-api:local
+    build:
+      context: .
+      dockerfile: TradeCore.Api/Dockerfile
+    environment:
+      <<: *tradecore-environment
+      Database__MigrateOnStartup: "false"
+      Database__ExitAfterMigration: "false"
+    ports:
+      - "${API_PORT:-5021}:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      tradecore-migrations:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  tradecore-trading-engine:
+    image: tradecore-trading-engine:local
+    build:
+      context: .
+      dockerfile: TradeCore.TradingEngine/Dockerfile
+    environment:
+      <<: *tradecore-environment
+      Database__MigrateOnStartup: "false"
+      Database__ExitAfterMigration: "false"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      tradecore-migrations:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  rabbitmq-data:

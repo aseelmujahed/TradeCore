@@ -1,0 +1,14 @@
+.git/
+.vs/
+.vscode/
+**/bin/
+**/obj/
+TestResults/
+test-results/
+coverage/
+.env
+*.user
+*.suo
+*.rsuser
+*.log
+README.md
