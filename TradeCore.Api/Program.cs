@@ -1,9 +1,11 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TradeCore.Api.Hubs;
 using TradeCore.Api.Notifications;
 using TradeCore.Api.Data;
 using TradeCore.Api.ExceptionHandling;
+using TradeCore.Api.Messaging;
 using TradeCore.Console.Data;
 using TradeCore.Console.Services;
 
@@ -27,6 +29,16 @@ builder.Services.AddControllers()
             new JsonStringEnumConverter(allowIntegerValues: false));
     });
 builder.Services.AddSignalR();
+builder.Services.AddOptions<RabbitMqOptions>()
+    .Bind(builder.Configuration.GetSection(RabbitMqOptions.SectionName))
+    .ValidateOnStart();
+builder.Services.AddSingleton<IValidateOptions<RabbitMqOptions>, RabbitMqOptionsValidator>();
+builder.Services.AddSingleton<IRabbitMqClientFactory, RabbitMqClientFactory>();
+builder.Services.AddSingleton<RabbitMqConnectionService>();
+builder.Services.AddSingleton<IRabbitMqConnectionService>(serviceProvider =>
+    serviceProvider.GetRequiredService<RabbitMqConnectionService>());
+builder.Services.AddHostedService<RabbitMqInitializationService>();
+builder.Services.AddScoped<IOrderMessagePublisher, RabbitMqOrderMessagePublisher>();
 builder.Services.AddScoped<ITradeExecutionNotifier, SignalRTradeExecutionNotifier>();
 builder.Services.AddScoped<IStockPriceNotifier, SignalRStockPriceNotifier>();
 builder.Services.AddScoped<UserService>();

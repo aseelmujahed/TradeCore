@@ -1,8 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Orders;
-using TradeCore.Api.DTOs.Stocks;
-using TradeCore.Api.DTOs.Trades;
-using TradeCore.Api.Notifications;
+using TradeCore.Api.Messaging;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -13,23 +11,14 @@ namespace TradeCore.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly OrderService _orderService;
-    private readonly OrderProcessingService _orderProcessingService;
-    private readonly ITradeExecutionNotifier _tradeExecutionNotifier;
-    private readonly IStockPriceNotifier _stockPriceNotifier;
-    private readonly ILogger<OrdersController> _logger;
+    private readonly IOrderMessagePublisher _orderMessagePublisher;
 
     public OrdersController(
         OrderService orderService,
-        OrderProcessingService orderProcessingService,
-        ITradeExecutionNotifier tradeExecutionNotifier,
-        IStockPriceNotifier stockPriceNotifier,
-        ILogger<OrdersController> logger)
+        IOrderMessagePublisher orderMessagePublisher)
     {
         _orderService = orderService;
-        _orderProcessingService = orderProcessingService;
-        _tradeExecutionNotifier = tradeExecutionNotifier;
-        _stockPriceNotifier = stockPriceNotifier;
-        _logger = logger;
+        _orderMessagePublisher = orderMessagePublisher;
     }
 
     [HttpPost]
@@ -45,43 +34,7 @@ public class OrdersController : ControllerBase
                 request.Price,
                 cancellationToken);
 
-            var processingResult = await _orderProcessingService.ProcessOrderAsync(order, cancellationToken);
-            foreach (var trade in processingResult.Trades)
-            {
-                try
-                {
-                    await _tradeExecutionNotifier.NotifyTradeExecutedAsync(
-                        ToTradeResponse(trade),
-                        cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogError(
-                        exception,
-                        "Failed to broadcast TradeExecuted notification for committed trade {TradeId}.",
-                        trade.Id);
-                }
-            }
-
-            if (processingResult.StockPriceUpdate is not null)
-            {
-                try
-                {
-                    await _stockPriceNotifier.NotifyStockPriceUpdatedAsync(
-                        new StockPriceUpdatedResponse(
-                            processingResult.StockPriceUpdate.StockId,
-                            processingResult.StockPriceUpdate.Symbol,
-                            processingResult.StockPriceUpdate.Price),
-                        cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogError(
-                        exception,
-                        "Failed to broadcast StockPriceUpdated notification for committed stock {StockId}.",
-                        processingResult.StockPriceUpdate.StockId);
-                }
-            }
+            await _orderMessagePublisher.PublishAsync(new OrderSubmittedMessage(order.Id), cancellationToken);
 
             return CreatedAtAction(nameof(GetOrderById), new { id = order.Id }, ToResponse(order));
         }
@@ -128,15 +81,4 @@ public class OrdersController : ControllerBase
             order.CreatedAt);
     }
 
-    private static TradeResponse ToTradeResponse(Trade trade)
-    {
-        return new TradeResponse(
-            trade.Id,
-            trade.BuyOrderId,
-            trade.SellOrderId,
-            trade.StockId,
-            trade.Quantity,
-            trade.Price,
-            trade.ExecutedAt);
-    }
 }

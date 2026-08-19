@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using TradeCore.Api.Messaging;
 using TradeCore.Console.Data;
 
 namespace TradeCore.Tests;
@@ -28,12 +29,15 @@ public sealed class TradeCoreApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:TradeCoreDatabase", "Host=localhost;Database=tradecore_test");
+        builder.UseSetting("RabbitMq:Enabled", "false");
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<DbContextOptions<TradeCoreDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<TradeCoreDbContext>>();
             services.RemoveAll<TradeCoreDbContext>();
             services.AddDbContext<TradeCoreDbContext>(options => options.UseSqlite(_connectionString));
+            services.RemoveAll<IOrderMessagePublisher>();
+            services.AddScoped<IOrderMessagePublisher, NoOpOrderMessagePublisher>();
         });
     }
 
@@ -51,5 +55,10 @@ public sealed class TradeCoreApiFactory : WebApplicationFactory<Program>
                 // A long-polling SignalR request can release its SQLite connection after fixture teardown.
             }
         }
+    }
+
+    private sealed class NoOpOrderMessagePublisher : IOrderMessagePublisher
+    {
+        public Task PublishAsync(OrderSubmittedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

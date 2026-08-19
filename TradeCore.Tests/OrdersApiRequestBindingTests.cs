@@ -2,10 +2,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
-using TradeCore.Api.Notifications;
+using TradeCore.Api.Messaging;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
 
@@ -58,25 +57,13 @@ public sealed class OrdersApiRequestBindingTests
     {
         var accountService = new AccountService(context);
         var stockService = new StockService(context);
-        var portfolioService = new PortfolioService(context, accountService, stockService);
-        var orderBookService = new OrderBookService(context);
-        var matchingService = new OrderMatchingService(orderBookService);
-        var tradeCreationService = new TradeCreationService(context, matchingService, portfolioService);
         return new OrdersController(
             new OrderService(context, accountService, stockService),
-            new OrderProcessingService(context, tradeCreationService),
-            new NoOpTradeExecutionNotifier(),
-            new NoOpStockPriceNotifier(),
-            NullLogger<OrdersController>.Instance);
+            new RecordingOrderMessagePublisher());
     }
 
-    private sealed class NoOpTradeExecutionNotifier : ITradeExecutionNotifier
+    private sealed class RecordingOrderMessagePublisher : IOrderMessagePublisher
     {
-        public Task NotifyTradeExecutedAsync(TradeCore.Api.DTOs.Trades.TradeResponse trade, CancellationToken cancellationToken = default) => Task.CompletedTask;
-    }
-
-    private sealed class NoOpStockPriceNotifier : IStockPriceNotifier
-    {
-        public Task NotifyStockPriceUpdatedAsync(TradeCore.Api.DTOs.Stocks.StockPriceUpdatedResponse update, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task PublishAsync(OrderSubmittedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

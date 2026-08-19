@@ -17,7 +17,7 @@ public sealed class StockPriceSignalRIntegrationTests : IClassFixture<TradeCoreA
 
     public StockPriceSignalRIntegrationTests(TradeCoreApiFactory factory) => _factory = factory;
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and StockPriceUpdated broadcasts to the future consumer.")]
     public async Task MatchingOrder_UpdatesPersistedStockPriceAndBroadcastsExecutionPrice()
     {
         var scenario = await SeedScenarioAsync(sellPrice: 45m);

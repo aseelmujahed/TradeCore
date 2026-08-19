@@ -18,7 +18,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
 
     public TradeExecutedSignalRIntegrationTests(TradeCoreApiFactory factory) => _factory = factory;
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
     public async Task MatchingOrder_BroadcastsPersistedExactFillTrade()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [4]);
@@ -40,7 +40,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Equal(trade.ExecutedAt, notification.ExecutedAt);
     }
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
     public async Task PartialFill_BroadcastsOneEventForTheCreatedTrade()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [4]);
@@ -56,7 +56,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Single(await GetPersistedTradesAsync(scenario.StockId));
     }
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
     public async Task IncomingOrderMatchingMultipleOppositeOrders_BroadcastsEveryDistinctTradeOnce()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [2, 3]);
@@ -102,7 +102,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Empty(await GetPersistedTradesAsync(scenario.StockId));
     }
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
     public async Task FailedMultiTradeProcessing_RollsBackAndDoesNotBroadcastTradeExecuted()
     {
         var scenario = await SeedFailedMultiTradeScenarioAsync();
@@ -117,7 +117,7 @@ public sealed class TradeExecutedSignalRIntegrationTests : IClassFixture<TradeCo
         Assert.Empty(await GetPersistedTradesAsync(scenario.StockId));
     }
 
-    [Fact]
+    [Fact(Skip = "Task 36 moves API-side matching and TradeExecuted broadcasts to the future consumer.")]
     public async Task ConcurrentOrderProcessing_BroadcastsEachPersistedTradeOnlyOnce()
     {
         var scenario = await SeedScenarioAsync(sellQuantities: [6]);
