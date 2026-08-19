@@ -16,7 +16,9 @@ public sealed class RabbitMqOptionsTests
                 ["RabbitMq:Port"] = "5678",
                 ["RabbitMq:UserName"] = "tradecore",
                 ["RabbitMq:Password"] = "not-logged",
-                ["RabbitMq:OrdersQueue"] = "tradecore-orders"
+                ["RabbitMq:OrdersQueue"] = "tradecore-orders",
+                ["RabbitMq:MaxProcessingAttempts"] = "4",
+                ["RabbitMq:RetryDelayMilliseconds"] = "250"
             })
             .Build();
 
@@ -29,6 +31,8 @@ public sealed class RabbitMqOptionsTests
         Assert.Equal("tradecore", options.UserName);
         Assert.Equal("not-logged", options.Password);
         Assert.Equal("tradecore-orders", options.OrdersQueue);
+        Assert.Equal(4, options.MaxProcessingAttempts);
+        Assert.Equal(250, options.RetryDelayMilliseconds);
     }
 
     [Theory]
@@ -63,5 +67,20 @@ public sealed class RabbitMqOptionsTests
         var result = new RabbitMqOptionsValidator().Validate(null, new RabbitMqOptions { Enabled = false });
 
         Assert.True(result.Succeeded);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(-1, 1)]
+    [InlineData(1, 0)]
+    public void Validator_rejects_invalid_retry_settings(int maxProcessingAttempts, int retryDelayMilliseconds)
+    {
+        var result = new RabbitMqOptionsValidator().Validate(null, new RabbitMqOptions
+        {
+            HostName = "localhost", UserName = "guest", Password = "guest", OrdersQueue = "orders",
+            MaxProcessingAttempts = maxProcessingAttempts, RetryDelayMilliseconds = retryDelayMilliseconds
+        });
+
+        Assert.True(result.Failed);
     }
 }

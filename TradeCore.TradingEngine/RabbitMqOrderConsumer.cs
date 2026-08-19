@@ -7,7 +7,8 @@ namespace TradeCore.TradingEngine;
 
 public sealed class RabbitMqOrderConsumer(
     IOptions<RabbitMqOptions> options,
-    OrderMessageHandler orderMessageHandler,
+    ReliableOrderDeliveryProcessor deliveryProcessor,
+    RabbitMqOrderDeliveryTransport transport,
     ILogger<RabbitMqOrderConsumer> logger) : BackgroundService
 {
     private IConnection? _connection;
@@ -22,85 +23,66 @@ public sealed class RabbitMqOrderConsumer(
             return;
         }
 
-        var rabbitMqOptions = options.Value;
-        var factory = new ConnectionFactory
-        {
-            HostName = rabbitMqOptions.HostName,
-            Port = rabbitMqOptions.Port,
-            UserName = rabbitMqOptions.UserName,
-            Password = rabbitMqOptions.Password
-        };
-
+        var settings = options.Value;
+        var factory = new ConnectionFactory { HostName = settings.HostName, Port = settings.Port, UserName = settings.UserName, Password = settings.Password };
         _connection = await factory.CreateConnectionAsync(stoppingToken);
-        _channel = await _connection.CreateChannelAsync(cancellationToken: stoppingToken);
-        await _channel.QueueDeclareAsync(
-            queue: rabbitMqOptions.OrdersQueue,
-            durable: true,
-            exclusive: false,
-            autoDelete: false,
-            arguments: null,
-            cancellationToken: stoppingToken);
+        _channel = await _connection.CreateChannelAsync(new CreateChannelOptions(true, true), stoppingToken);
+        await DeclareTopologyAsync(settings, stoppingToken);
+        transport.SetChannel(_channel);
         await _channel.BasicQosAsync(0, 1, false, stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(_channel);
         consumer.ReceivedAsync += (_, delivery) => ProcessDeliveryAsync(delivery, stoppingToken);
-        _consumerTag = await _channel.BasicConsumeAsync(
-            queue: rabbitMqOptions.OrdersQueue,
-            autoAck: false,
-            consumer: consumer,
-            cancellationToken: stoppingToken);
-        logger.LogInformation("Consuming submitted orders from RabbitMQ queue {OrdersQueue}.", rabbitMqOptions.OrdersQueue);
+        _consumerTag = await _channel.BasicConsumeAsync(settings.OrdersQueue, false, consumer, stoppingToken);
+        logger.LogInformation("Consuming submitted orders from RabbitMQ queue {Queue}.", settings.OrdersQueue);
 
-        try
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-        }
+        try { await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken); }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_channel is not null && _consumerTag is not null)
-        {
-            await _channel.BasicCancelAsync(_consumerTag, false, cancellationToken);
-        }
-
+        if (_channel is not null && _consumerTag is not null) await _channel.BasicCancelAsync(_consumerTag, false, cancellationToken);
         await base.StopAsync(cancellationToken);
     }
 
     public override void Dispose()
     {
-        if (_channel is not null)
-        {
-            _channel.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-
-        if (_connection is not null)
-        {
-            _connection.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-
+        _channel?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.Dispose();
+    }
+
+    private async Task DeclareTopologyAsync(RabbitMqOptions settings, CancellationToken cancellationToken)
+    {
+        await _channel!.QueueDeclareAsync(settings.OrdersQueue, true, false, false, null, false, false, cancellationToken);
+        await _channel.QueueDeclareAsync(
+            RabbitMqOrderDeliveryTransport.RetryQueueName(settings.OrdersQueue), true, false, false,
+            new Dictionary<string, object?>
+            {
+                ["x-message-ttl"] = settings.RetryDelayMilliseconds,
+                ["x-dead-letter-exchange"] = string.Empty,
+                ["x-dead-letter-routing-key"] = settings.OrdersQueue
+            }, false, false, cancellationToken);
+        await _channel.QueueDeclareAsync(
+            RabbitMqOrderDeliveryTransport.DeadLetterQueueName(settings.OrdersQueue), true, false, false, null, false, false, cancellationToken);
     }
 
     private async Task ProcessDeliveryAsync(BasicDeliverEventArgs delivery, CancellationToken stoppingToken)
     {
+        var orderDelivery = new OrderDelivery(
+            delivery.DeliveryTag, delivery.Body,
+            RabbitMqOrderDeliveryTransport.GetAttempt(delivery.BasicProperties.Headers),
+            Guid.TryParse(delivery.BasicProperties.MessageId, out var orderId) ? orderId : null);
         try
         {
-            await orderMessageHandler.ProcessAsync(delivery.Body, stoppingToken);
-            await _channel!.BasicAckAsync(delivery.DeliveryTag, false, stoppingToken);
+            await deliveryProcessor.ProcessAsync(orderDelivery, stoppingToken);
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            // Task 38 will add retry and dead-letter handling.  For now, log and
-            // settle the delivery so a malformed or invalid message cannot stall this consumer.
-            logger.LogError(exception, "Unable to process RabbitMQ delivery {DeliveryTag}.", delivery.DeliveryTag);
-            await _channel!.BasicAckAsync(delivery.DeliveryTag, false, CancellationToken.None);
+            // No ACK here: a failed confirmed publish must not turn into message loss.
+            logger.LogError(exception, "Delivery {DeliveryTag} was not acknowledged because failure handling did not complete.", delivery.DeliveryTag);
         }
     }
 }

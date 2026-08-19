@@ -28,7 +28,11 @@ public static class Program
         builder.Services.AddScoped<TradeCreationService>();
         builder.Services.AddSingleton<StockProcessingLockRegistry>();
         builder.Services.AddScoped<OrderProcessingService>();
-        builder.Services.AddSingleton<OrderMessageHandler>();
+        builder.Services.AddSingleton<IOrderMessageHandler, OrderMessageHandler>();
+        builder.Services.AddSingleton<RabbitMqOrderDeliveryTransport>();
+        builder.Services.AddSingleton<IOrderMessageDeliveryTransport>(serviceProvider =>
+            serviceProvider.GetRequiredService<RabbitMqOrderDeliveryTransport>());
+        builder.Services.AddSingleton<ReliableOrderDeliveryProcessor>();
         builder.Services.AddHostedService<RabbitMqOrderConsumer>();
 
         await builder.Build().RunAsync();

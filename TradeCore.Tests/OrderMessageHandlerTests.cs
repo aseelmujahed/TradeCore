@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Console.Data;
 using TradeCore.Console.Services;
 using TradeCore.Messaging;
@@ -19,9 +18,7 @@ public sealed class OrderMessageHandlerTests
         var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
         var handler = CreateHandler(scopes);
 
-        var processed = await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
-
-        Assert.True(processed);
+        await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
         Assert.Equal(1, scopes.CreatedScopes);
         await using var verificationContext = database.CreateContext();
         Assert.Single(verificationContext.Trades);
@@ -52,9 +49,19 @@ public sealed class OrderMessageHandlerTests
         var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
         var handler = CreateHandler(scopes);
 
-        var processed = await handler.ProcessAsync("not-json"u8.ToArray(), CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOrderMessageException>(() => handler.ProcessAsync("not-json"u8.ToArray(), CancellationToken.None));
+        Assert.Equal(0, scopes.CreatedScopes);
+    }
 
-        Assert.False(processed);
+    [Fact]
+    public async Task ProcessAsync_empty_message_is_rejected_without_creating_a_scope()
+    {
+        using var database = new TradingTestDatabase();
+        var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
+        var handler = CreateHandler(scopes);
+
+        await Assert.ThrowsAsync<InvalidOrderMessageException>(() => handler.ProcessAsync(Array.Empty<byte>(), CancellationToken.None));
+
         Assert.Equal(0, scopes.CreatedScopes);
     }
 
@@ -65,17 +72,14 @@ public sealed class OrderMessageHandlerTests
         var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
         var handler = CreateHandler(scopes);
 
-        var processed = await handler.ProcessAsync(Serialize(Guid.NewGuid()), CancellationToken.None);
-
-        Assert.False(processed);
+        await Assert.ThrowsAsync<PersistedOrderNotFoundException>(() => handler.ProcessAsync(Serialize(Guid.NewGuid()), CancellationToken.None));
         Assert.Equal(1, scopes.CreatedScopes);
         await using var verificationContext = database.CreateContext();
         Assert.Empty(verificationContext.Orders);
         Assert.Empty(verificationContext.Trades);
     }
 
-    private static OrderMessageHandler CreateHandler(IServiceScopeFactory scopes) =>
-        new(scopes, NullLogger<OrderMessageHandler>.Instance);
+    private static OrderMessageHandler CreateHandler(IServiceScopeFactory scopes) => new(scopes);
 
     private static byte[] Serialize(Guid orderId) =>
         JsonSerializer.SerializeToUtf8Bytes(new OrderSubmittedMessage(orderId), new JsonSerializerOptions(JsonSerializerDefaults.Web));

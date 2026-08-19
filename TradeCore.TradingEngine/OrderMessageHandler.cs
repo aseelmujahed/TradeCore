@@ -7,13 +7,12 @@ using TradeCore.Messaging;
 namespace TradeCore.TradingEngine;
 
 /// <summary>Loads a submitted order and sends it through the established processing path.</summary>
-public sealed class OrderMessageHandler(
-    IServiceScopeFactory scopeFactory,
-    ILogger<OrderMessageHandler> logger)
+public sealed class OrderMessageHandler(IServiceScopeFactory scopeFactory)
+    : IOrderMessageHandler
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<bool> ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
+    public async Task ProcessAsync(ReadOnlyMemory<byte> body, CancellationToken cancellationToken)
     {
         OrderSubmittedMessage? message;
         try
@@ -22,14 +21,12 @@ public sealed class OrderMessageHandler(
         }
         catch (JsonException exception)
         {
-            logger.LogWarning(exception, "Discarding malformed submitted-order message.");
-            return false;
+            throw new InvalidOrderMessageException("Submitted-order message is not valid JSON.", exception);
         }
 
         if (message is null || message.OrderId == Guid.Empty)
         {
-            logger.LogWarning("Discarding submitted-order message with no valid order ID.");
-            return false;
+            throw new InvalidOrderMessageException("Submitted-order message has no valid order ID.");
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -41,12 +38,9 @@ public sealed class OrderMessageHandler(
 
         if (order is null)
         {
-            logger.LogWarning("Submitted-order message references missing order {OrderId}.", message.OrderId);
-            return false;
+            throw new PersistedOrderNotFoundException(message.OrderId);
         }
 
-        await services.GetRequiredService<OrderProcessingService>()
-            .ProcessOrderAsync(order, cancellationToken);
-        return true;
+        await services.GetRequiredService<OrderProcessingService>().ProcessOrderAsync(order, cancellationToken);
     }
 }
