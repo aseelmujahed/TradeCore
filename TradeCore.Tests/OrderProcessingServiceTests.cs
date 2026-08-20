@@ -96,6 +96,72 @@ public sealed class OrderProcessingServiceTests
     }
 
     [Fact]
+    public async Task ProcessOrderAsync_RedeliveredAfterPartialFill_DoesNotExecuteRemainingLiquidityAgain()
+    {
+        using var database = new TradingTestDatabase();
+        await using var dbContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(dbContext, sellerShares: 10, buyPrice: 1m, sellQuantity: 10);
+        var submittedOrder = await CreateOrderAsync(dbContext, scenario.Buyer.Id, scenario.Stock, 4, 50m);
+        var service = database.CreateServices(dbContext).OrderProcessingService;
+
+        await service.ProcessOrderAsync(submittedOrder);
+        var redelivery = await service.ProcessOrderAsync(submittedOrder);
+
+        Assert.False(redelivery.HasTrade);
+        Assert.Single(await dbContext.Trades.ToListAsync());
+        Assert.Equal(0, (await dbContext.Orders.SingleAsync(order => order.Id == submittedOrder.Id)).Quantity);
+        Assert.Equal(OrderStatus.Filled, (await dbContext.Orders.SingleAsync(order => order.Id == submittedOrder.Id)).Status);
+        Assert.Equal(6, (await dbContext.Orders.SingleAsync(order => order.Id == scenario.SellOrder.Id)).Quantity);
+        Assert.Equal(800m, (await dbContext.Accounts.SingleAsync(account => account.Id == scenario.Buyer.Id)).Balance);
+        Assert.Equal(300m, (await dbContext.Accounts.SingleAsync(account => account.Id == scenario.Seller.Id)).Balance);
+        Assert.Equal(4, (await dbContext.PortfolioPositions.SingleAsync(position => position.AccountId == scenario.Buyer.Id)).Quantity);
+        Assert.Equal(6, (await dbContext.PortfolioPositions.SingleAsync(position => position.AccountId == scenario.Seller.Id)).Quantity);
+    }
+
+    [Fact]
+    public async Task ProcessOrderAsync_RedeliveredCancelledOrder_DoesNotTriggerMatching()
+    {
+        using var database = new TradingTestDatabase();
+        await using var dbContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(dbContext, sellerShares: 4);
+        var cancelledOrder = new Order(Guid.NewGuid(), scenario.Buyer.Id, scenario.Stock.Id, OrderType.Buy, 1, 50m);
+        dbContext.Orders.Add(cancelledOrder);
+        await dbContext.SaveChangesAsync();
+        dbContext.Entry(cancelledOrder).Property(nameof(Order.Status)).CurrentValue = OrderStatus.Cancelled;
+        await dbContext.SaveChangesAsync();
+
+        var result = await database.CreateServices(dbContext).OrderProcessingService.ProcessOrderAsync(cancelledOrder);
+
+        Assert.False(result.HasTrade);
+        Assert.Empty(await dbContext.Trades.ToListAsync());
+        Assert.Equal(OrderStatus.Pending, (await dbContext.Orders.SingleAsync(order => order.Id == scenario.BuyOrder.Id)).Status);
+        Assert.Equal(OrderStatus.Pending, (await dbContext.Orders.SingleAsync(order => order.Id == scenario.SellOrder.Id)).Status);
+        Assert.Equal(OrderStatus.Cancelled, (await dbContext.Orders.SingleAsync(order => order.Id == cancelledOrder.Id)).Status);
+        Assert.Throws<InvalidOperationException>(() => cancelledOrder.ApplyFill(1));
+    }
+
+    [Fact]
+    public async Task ProcessOrderAsync_RedeliveredAfterNoMatch_DoesNotCreateAnotherOrderOrSettlement()
+    {
+        using var database = new TradingTestDatabase();
+        await using var dbContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(dbContext, buyPrice: 1m, sellPrice: 195m);
+        var submittedOrder = await CreateOrderAsync(dbContext, scenario.Buyer.Id, scenario.Stock, 4, 190m);
+        var service = database.CreateServices(dbContext).OrderProcessingService;
+
+        await service.ProcessOrderAsync(submittedOrder);
+        var redelivery = await service.ProcessOrderAsync(submittedOrder);
+
+        Assert.False(redelivery.HasTrade);
+        Assert.Equal(1, await dbContext.Orders.CountAsync(order => order.Id == submittedOrder.Id));
+        Assert.Equal(OrderStatus.Pending, (await dbContext.Orders.SingleAsync(order => order.Id == submittedOrder.Id)).Status);
+        Assert.NotNull((await dbContext.Orders.SingleAsync(order => order.Id == submittedOrder.Id)).SubmittedMessageProcessedAt);
+        Assert.Empty(await dbContext.Trades.ToListAsync());
+        Assert.Equal(1_000m, (await dbContext.Accounts.SingleAsync(account => account.Id == scenario.Buyer.Id)).Balance);
+        Assert.Empty(await dbContext.PortfolioPositions.Where(position => position.AccountId == scenario.Buyer.Id).ToListAsync());
+    }
+
+    [Fact]
     public async Task ProcessOrderAsync_WhenBuyerHasInsufficientFunds_PreservesPersistedState()
     {
         using var database = new TradingTestDatabase();

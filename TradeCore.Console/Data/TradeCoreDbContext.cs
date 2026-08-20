@@ -67,6 +67,7 @@ public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> opti
             entity.Property(order => order.Quantity).IsRequired();
             entity.Property(order => order.Price).HasPrecision(18, 4);
             entity.Property(order => order.CreatedAt).IsRequired();
+            entity.Property(order => order.SubmittedMessageProcessedAt);
             entity.HasOne<Account>()
                 .WithMany()
                 .HasForeignKey(order => order.AccountId)

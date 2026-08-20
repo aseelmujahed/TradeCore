@@ -20,6 +20,12 @@ public class Order
 
     public DateTime CreatedAt { get; private set; }
 
+    /// <summary>
+    /// Set atomically with the first successful handling of this order's submitted-order message.
+    /// It makes broker redelivery a durable no-op, including when the first handling found no match.
+    /// </summary>
+    public DateTime? SubmittedMessageProcessedAt { get; private set; }
+
     private Order()
     {
     }
@@ -68,6 +74,11 @@ public class Order
 
     public void ApplyFill(int executedQuantity)
     {
+        if (Status is not (OrderStatus.Pending or OrderStatus.PartiallyFilled))
+        {
+            throw new InvalidOperationException("Only active orders can be filled.");
+        }
+
         if (executedQuantity <= 0)
         {
             throw new ArgumentOutOfRangeException(

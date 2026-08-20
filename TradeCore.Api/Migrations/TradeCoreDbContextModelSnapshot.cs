@@ -75,6 +75,9 @@ namespace TradeCore.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<DateTime?>("SubmittedMessageProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid>("StockId")
                         .HasColumnType("uuid");
 

@@ -47,7 +47,28 @@ public sealed class OrderProcessingService
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
         var trades = new List<Trade>();
 
-        while (submittedOrder.Status != OrderStatus.Filled)
+        // The claim is conditional in the database, rather than held in memory, so a
+        // redelivery after a restart (or from another engine instance) is a no-op.
+        // It is part of this transaction and is therefore rolled back with any failed
+        // match or settlement.
+        var claimed = await _dbContext.Orders
+            .Where(order => order.Id == submittedOrder.Id && order.SubmittedMessageProcessedAt == null)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    order => order.SubmittedMessageProcessedAt,
+                    DateTime.UtcNow),
+                cancellationToken);
+
+        if (claimed == 0)
+        {
+            return new OrderProcessingResult(submittedOrder, trades, null);
+        }
+
+        // ExecuteUpdate deliberately bypasses EF tracking; reload so the returned
+        // result and the active-order check reflect the durable claim and latest state.
+        await _dbContext.Entry(submittedOrder).ReloadAsync(cancellationToken);
+
+        while (submittedOrder.Status is OrderStatus.Pending or OrderStatus.PartiallyFilled)
         {
             var trade = await _tradeCreationService.CreateTradeAsync(submittedOrder.StockId, cancellationToken);
             if (trade is null)

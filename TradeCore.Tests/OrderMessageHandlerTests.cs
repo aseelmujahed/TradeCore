@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TradeCore.Console.Data;
 using TradeCore.Console.Services;
@@ -53,6 +54,28 @@ public sealed class OrderMessageHandlerTests
 
         Assert.Equal(2, scopes.CreatedScopes);
         Assert.Equal(2, scopes.DisposedScopes);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_redelivered_filled_order_does_not_duplicate_trade_or_settlement()
+    {
+        using var database = new TradingTestDatabase();
+        await using var setupContext = database.CreateContext();
+        var scenario = await database.SeedScenarioAsync(setupContext, sellerShares: 4, buyQuantity: 4, sellQuantity: 4);
+        var handler = CreateHandler(new TestScopeFactory(database, new StockProcessingLockRegistry()));
+
+        await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
+        await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
+
+        await using var verificationContext = database.CreateContext();
+        var trade = Assert.Single(await verificationContext.Trades.ToListAsync());
+        Assert.Equal(scenario.BuyOrder.Id, trade.BuyOrderId);
+        Assert.Equal(800m, (await verificationContext.Accounts.SingleAsync(account => account.Id == scenario.Buyer.Id)).Balance);
+        Assert.Equal(300m, (await verificationContext.Accounts.SingleAsync(account => account.Id == scenario.Seller.Id)).Balance);
+        Assert.Equal(4, (await verificationContext.PortfolioPositions.SingleAsync(position => position.AccountId == scenario.Buyer.Id)).Quantity);
+        Assert.Empty(await verificationContext.PortfolioPositions.Where(position => position.AccountId == scenario.Seller.Id).ToListAsync());
+        Assert.Equal(0, (await verificationContext.Orders.SingleAsync(order => order.Id == scenario.BuyOrder.Id)).Quantity);
+        Assert.NotNull((await verificationContext.Orders.SingleAsync(order => order.Id == scenario.BuyOrder.Id)).SubmittedMessageProcessedAt);
     }
 
     [Fact]
