@@ -1,14 +1,17 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Console.Data;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
+using TradeCore.Messaging;
 
 namespace TradeCore.Console.Services;
 
 public sealed class OrderProcessingService
 {
+    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
     private readonly TradeCreationService _tradeCreationService;
     private readonly StockProcessingLockRegistry _stockProcessingLocks;
     private readonly TradeCoreDbContext _dbContext;
@@ -84,11 +87,51 @@ public sealed class OrderProcessingService
         {
             var stock = await _dbContext.Stocks.SingleAsync(stock => stock.Id == submittedOrder.StockId, cancellationToken);
             stockPriceUpdate = new StockPriceUpdate(stock.Id, stock.Symbol, stock.CurrentPrice);
+            AddTradingEventOutboxMessages(submittedOrder, trades, stockPriceUpdate);
+            await _dbContext.SaveChangesAsync(cancellationToken);
         }
 
         await transaction.CommitAsync(cancellationToken);
         LogCommittedTrades(trades);
         return new OrderProcessingResult(submittedOrder, trades, stockPriceUpdate);
+    }
+
+    private void AddTradingEventOutboxMessages(
+        Order submittedOrder,
+        IReadOnlyList<Trade> trades,
+        StockPriceUpdate stockPriceUpdate)
+    {
+        foreach (var trade in trades)
+        {
+            var tradeExecuted = new TradeExecutedEvent(
+                trade.Id,
+                trade.Id,
+                trade.BuyOrderId,
+                trade.SellOrderId,
+                trade.StockId,
+                trade.Quantity,
+                trade.Price,
+                trade.ExecutedAt);
+            _dbContext.OutboxMessages.Add(new OutboxMessage(
+                Guid.NewGuid(),
+                submittedOrder.Id,
+                OutboxMessage.TradingEngineOwner,
+                OutboxMessage.TradeExecutedMessageType,
+                JsonSerializer.Serialize(tradeExecuted, SerializerOptions)));
+        }
+
+        var latestTrade = trades[^1];
+        var stockPriceUpdated = new StockPriceUpdatedEvent(
+            latestTrade.Id,
+            stockPriceUpdate.StockId,
+            stockPriceUpdate.Symbol,
+            stockPriceUpdate.Price);
+        _dbContext.OutboxMessages.Add(new OutboxMessage(
+            Guid.NewGuid(),
+            submittedOrder.Id,
+            OutboxMessage.TradingEngineOwner,
+            OutboxMessage.StockPriceUpdatedMessageType,
+            JsonSerializer.Serialize(stockPriceUpdated, SerializerOptions)));
     }
 
     private void LogCommittedTrades(IEnumerable<Trade> trades)

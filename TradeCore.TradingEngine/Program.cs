@@ -36,6 +36,7 @@ public static class Program
             serviceProvider.GetRequiredService<RabbitMqOrderDeliveryTransport>());
         builder.Services.AddSingleton<ReliableOrderDeliveryProcessor>();
         builder.Services.AddHostedService<RabbitMqOrderConsumer>();
+        builder.Services.AddHostedService<TradingEngineOutboxPublisher>();
 
         await builder.Build().RunAsync();
     }

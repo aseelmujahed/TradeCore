@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
+using TradeCore.Messaging;
 
 namespace TradeCore.Tests;
 
@@ -22,6 +24,20 @@ public sealed class StockPriceUpdateTests
         Assert.Equal(scenario.Stock.Id, result.StockPriceUpdate.StockId);
         Assert.Equal(scenario.Stock.Symbol, result.StockPriceUpdate.Symbol);
         Assert.Equal(45m, result.StockPriceUpdate.Price);
+        var outboxMessages = await dbContext.OutboxMessages
+            .Where(message => message.Owner == OutboxMessage.TradingEngineOwner)
+            .ToListAsync();
+        var tradeEvent = JsonSerializer.Deserialize<TradeExecutedEvent>(Assert.Single(outboxMessages,
+            message => message.MessageType == OutboxMessage.TradeExecutedMessageType).Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var stockPriceEvent = JsonSerializer.Deserialize<StockPriceUpdatedEvent>(Assert.Single(outboxMessages,
+            message => message.MessageType == OutboxMessage.StockPriceUpdatedMessageType).Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(tradeEvent);
+        Assert.NotNull(stockPriceEvent);
+        Assert.Equal(tradeEvent.TradeId, tradeEvent.EventId);
+        Assert.Equal(tradeEvent.TradeId, stockPriceEvent.EventId);
+        Assert.Equal(result.StockPriceUpdate.Price, stockPriceEvent.Price);
     }
 
     [Fact]
@@ -70,6 +86,14 @@ public sealed class StockPriceUpdateTests
         Assert.Equal([440m, 450m], result.Trades.Select(trade => trade.Price));
         Assert.Equal(450m, (await dbContext.Stocks.SingleAsync(stock => stock.Id == scenario.Stock.Id)).CurrentPrice);
         Assert.Equal(450m, result.StockPriceUpdate!.Price);
+        var outboxMessages = await dbContext.OutboxMessages
+            .Where(message => message.Owner == OutboxMessage.TradingEngineOwner)
+            .ToListAsync();
+        Assert.Equal(2, outboxMessages.Count(message => message.MessageType == OutboxMessage.TradeExecutedMessageType));
+        var stockPriceMessage = Assert.Single(outboxMessages, message => message.MessageType == OutboxMessage.StockPriceUpdatedMessageType);
+        var stockPriceEvent = JsonSerializer.Deserialize<StockPriceUpdatedEvent>(stockPriceMessage.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(stockPriceEvent);
+        Assert.Equal(result.Trades[^1].Id, stockPriceEvent.EventId);
     }
 
     [Fact]
@@ -84,6 +108,7 @@ public sealed class StockPriceUpdateTests
             () => database.CreateServices(dbContext).OrderProcessingService.ProcessOrderAsync(submitted));
 
         Assert.Empty(await dbContext.Trades.ToListAsync());
+        Assert.Empty(await dbContext.OutboxMessages.Where(message => message.Owner == OutboxMessage.TradingEngineOwner).ToListAsync());
         Assert.Equal(50m, (await dbContext.Stocks.SingleAsync(stock => stock.Id == scenario.Stock.Id)).CurrentPrice);
     }
 

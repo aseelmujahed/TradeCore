@@ -25,8 +25,10 @@ public sealed class RealRabbitMqApiFactory(RabbitMqTestSettings rabbitMq) : Trad
         builder.UseSetting("RabbitMq:RetryDelayMilliseconds", "100");
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IHostedService>();
             services.RemoveAll<IOrderMessagePublisher>();
             services.AddScoped<IOrderMessagePublisher, RabbitMqOrderMessagePublisher>();
+            services.AddHostedService<ApiOutboxPublisher>();
             services.AddHostedService<RabbitMqInitializationService>();
             services.AddHostedService<RabbitMqTradingEventConsumer>();
         });

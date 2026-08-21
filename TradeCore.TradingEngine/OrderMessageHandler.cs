@@ -8,8 +8,7 @@ namespace TradeCore.TradingEngine;
 
 /// <summary>Loads a submitted order and sends it through the established processing path.</summary>
 public sealed class OrderMessageHandler(
-    IServiceScopeFactory scopeFactory,
-    ITradingEventPublisher? tradingEventPublisher = null)
+    IServiceScopeFactory scopeFactory)
     : IOrderMessageHandler
 {
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
@@ -44,54 +43,5 @@ public sealed class OrderMessageHandler(
         }
 
         await services.GetRequiredService<OrderProcessingService>().ProcessOrderAsync(order, cancellationToken);
-
-        // Re-querying makes a redelivered order message safe: after a publish failure the
-        // committed trade can be emitted again with the same deterministic event ID.
-        var trades = await dbContext.Trades
-            .AsNoTracking()
-            .Where(trade => trade.BuyOrderId == message.OrderId || trade.SellOrderId == message.OrderId)
-            .OrderBy(trade => trade.ExecutedAt)
-            .ToListAsync(cancellationToken);
-        if (trades.Count == 0)
-        {
-            return;
-        }
-
-        var stock = await dbContext.Stocks
-            .AsNoTracking()
-            .SingleAsync(candidate => candidate.Id == order.StockId, cancellationToken);
-        var publisher = tradingEventPublisher ?? NullTradingEventPublisher.Instance;
-        foreach (var trade in trades)
-        {
-            await publisher.PublishAsync(
-                new TradeExecutedEvent(
-                    trade.Id,
-                    trade.Id,
-                    trade.BuyOrderId,
-                    trade.SellOrderId,
-                    trade.StockId,
-                    trade.Quantity,
-                    trade.Price,
-                    trade.ExecutedAt),
-                cancellationToken);
-        }
-
-        var mostRecentTrade = trades[^1];
-        await publisher.PublishAsync(
-            new StockPriceUpdatedEvent(
-                mostRecentTrade.Id,
-                stock.Id,
-                stock.Symbol,
-                mostRecentTrade.Price),
-            cancellationToken);
-    }
-
-    private sealed class NullTradingEventPublisher : ITradingEventPublisher
-    {
-        public static readonly NullTradingEventPublisher Instance = new();
-
-        public Task PublishAsync(TradeExecutedEvent message, CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task PublishAsync(StockPriceUpdatedEvent message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

@@ -46,8 +46,11 @@ public class TradeCoreApiFactory : WebApplicationFactory<Program>
             services.AddDbContext<TradeCoreDbContext>(options => options.UseSqlite(_connectionString));
             services.RemoveAll<IOrderMessagePublisher>();
             services.AddHostedService<ApiOutboxPublisher>();
+            services.AddHostedService<TradingEngineOutboxPublisher>();
             services.AddSingleton<OrderProcessingMonitor>();
             services.AddSingleton<TestTradingEventPublisher>();
+            services.AddSingleton<ITradingEventPublisher>(serviceProvider =>
+                serviceProvider.GetRequiredService<TestTradingEventPublisher>());
             services.AddScoped<IOrderMessagePublisher, InProcessTradingEngineOrderPublisher>();
         });
     }
@@ -74,7 +77,6 @@ public class TradeCoreApiFactory : WebApplicationFactory<Program>
     /// <summary>Exercises the worker's real message handler while replacing only the external broker in API tests.</summary>
     private sealed class InProcessTradingEngineOrderPublisher(
         IServiceScopeFactory scopeFactory,
-        TestTradingEventPublisher tradingEventPublisher,
         OrderProcessingMonitor monitor) : IOrderMessagePublisher
     {
         public Task PublishAsync(OrderSubmittedMessage message, CancellationToken cancellationToken)
@@ -88,7 +90,7 @@ public class TradeCoreApiFactory : WebApplicationFactory<Program>
         {
             try
             {
-                var handler = new OrderMessageHandler(scopeFactory, tradingEventPublisher);
+                var handler = new OrderMessageHandler(scopeFactory);
                 var body = JsonSerializer.SerializeToUtf8Bytes(message, new JsonSerializerOptions(JsonSerializerDefaults.Web));
                 await handler.ProcessAsync(body, cancellationToken);
                 completion.TrySetResult(null);

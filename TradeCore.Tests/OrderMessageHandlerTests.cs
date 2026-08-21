@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TradeCore.Console.Data;
 using TradeCore.Console.Services;
+using TradeCore.Console.Models;
 using TradeCore.Messaging;
 using TradeCore.TradingEngine;
 
@@ -17,8 +18,7 @@ public sealed class OrderMessageHandlerTests
         await using var setupContext = database.CreateContext();
         var scenario = await database.SeedScenarioAsync(setupContext, sellerShares: 4, buyQuantity: 4, sellQuantity: 4);
         var scopes = new TestScopeFactory(database, new StockProcessingLockRegistry());
-        var publisher = new RecordingTradingEventPublisher();
-        var handler = CreateHandler(scopes, publisher);
+        var handler = CreateHandler(scopes);
 
         await handler.ProcessAsync(Serialize(scenario.BuyOrder.Id), CancellationToken.None);
         Assert.Equal(1, scopes.CreatedScopes);
@@ -26,14 +26,20 @@ public sealed class OrderMessageHandlerTests
         Assert.Single(verificationContext.Trades);
         Assert.Equal(0, verificationContext.Orders.Single(order => order.Id == scenario.BuyOrder.Id).Quantity);
         Assert.Equal(800m, verificationContext.Accounts.Single(account => account.Id == scenario.Buyer.Id).Balance);
-        var tradeEvent = Assert.Single(publisher.TradeEvents);
+        var tradeEvent = JsonSerializer.Deserialize<TradeExecutedEvent>(Assert.Single(
+            verificationContext.OutboxMessages.Where(message => message.MessageType == OutboxMessage.TradeExecutedMessageType)).Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(tradeEvent);
         Assert.Equal(tradeEvent.EventId, tradeEvent.TradeId);
         Assert.Equal(scenario.BuyOrder.Id, tradeEvent.BuyOrderId);
         Assert.Equal(scenario.SellOrder.Id, tradeEvent.SellOrderId);
         Assert.Equal(scenario.Stock.Id, tradeEvent.StockId);
         Assert.Equal(4, tradeEvent.Quantity);
         Assert.Equal(50m, tradeEvent.Price);
-        var priceEvent = Assert.Single(publisher.StockPriceEvents);
+        var priceEvent = JsonSerializer.Deserialize<StockPriceUpdatedEvent>(Assert.Single(
+            verificationContext.OutboxMessages.Where(message => message.MessageType == OutboxMessage.StockPriceUpdatedMessageType)).Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.NotNull(priceEvent);
         Assert.Equal(tradeEvent.TradeId, priceEvent.EventId);
         Assert.Equal(scenario.Stock.Id, priceEvent.StockId);
         Assert.Equal(scenario.Stock.Symbol, priceEvent.Symbol);
@@ -76,6 +82,7 @@ public sealed class OrderMessageHandlerTests
         Assert.Empty(await verificationContext.PortfolioPositions.Where(position => position.AccountId == scenario.Seller.Id).ToListAsync());
         Assert.Equal(0, (await verificationContext.Orders.SingleAsync(order => order.Id == scenario.BuyOrder.Id)).Quantity);
         Assert.NotNull((await verificationContext.Orders.SingleAsync(order => order.Id == scenario.BuyOrder.Id)).SubmittedMessageProcessedAt);
+        Assert.Equal(2, await verificationContext.OutboxMessages.CountAsync(message => message.Owner == OutboxMessage.TradingEngineOwner));
     }
 
     [Fact]
@@ -115,9 +122,7 @@ public sealed class OrderMessageHandlerTests
         Assert.Empty(verificationContext.Trades);
     }
 
-    private static OrderMessageHandler CreateHandler(
-        IServiceScopeFactory scopes,
-        ITradingEventPublisher? publisher = null) => new(scopes, publisher);
+    private static OrderMessageHandler CreateHandler(IServiceScopeFactory scopes) => new(scopes);
 
     private static byte[] Serialize(Guid orderId) =>
         JsonSerializer.SerializeToUtf8Bytes(new OrderSubmittedMessage(orderId), new JsonSerializerOptions(JsonSerializerDefaults.Web));
@@ -165,21 +170,4 @@ public sealed class OrderMessageHandlerTests
         public void Dispose() => dbContext.Dispose();
     }
 
-    private sealed class RecordingTradingEventPublisher : ITradingEventPublisher
-    {
-        public List<TradeExecutedEvent> TradeEvents { get; } = [];
-        public List<StockPriceUpdatedEvent> StockPriceEvents { get; } = [];
-
-        public Task PublishAsync(TradeExecutedEvent message, CancellationToken cancellationToken)
-        {
-            TradeEvents.Add(message);
-            return Task.CompletedTask;
-        }
-
-        public Task PublishAsync(StockPriceUpdatedEvent message, CancellationToken cancellationToken)
-        {
-            StockPriceEvents.Add(message);
-            return Task.CompletedTask;
-        }
-    }
 }

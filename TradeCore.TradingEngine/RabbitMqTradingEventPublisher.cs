@@ -28,21 +28,51 @@ public sealed class RabbitMqTradingEventPublisher(
         TMessage message,
         CancellationToken cancellationToken)
     {
-        await InitializeAsync(cancellationToken);
-        var body = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
-        await _channel!.BasicPublishAsync(
-            exchange: string.Empty,
-            routingKey: queue,
-            mandatory: true,
-            basicProperties: new BasicProperties
+        try
+        {
+            await InitializeAsync(cancellationToken);
+            var body = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
+            await _channel!.BasicPublishAsync(
+                exchange: string.Empty,
+                routingKey: queue,
+                mandatory: true,
+                basicProperties: new BasicProperties
+                {
+                    ContentType = "application/json",
+                    Persistent = true,
+                    MessageId = eventId.ToString()
+                },
+                body: body,
+                cancellationToken: cancellationToken);
+            logger.LogInformation("RabbitMQ confirmed trading event {EventId} for queue {Queue}.", eventId, queue);
+        }
+        catch
+        {
+            await ResetAsync();
+            throw;
+        }
+    }
+
+    private async Task ResetAsync()
+    {
+        await _initializationLock.WaitAsync();
+        try
+        {
+            if (_channel is not null)
             {
-                ContentType = "application/json",
-                Persistent = true,
-                MessageId = eventId.ToString()
-            },
-            body: body,
-            cancellationToken: cancellationToken);
-        logger.LogInformation("RabbitMQ confirmed trading event {EventId} for queue {Queue}.", eventId, queue);
+                await _channel.DisposeAsync();
+                _channel = null;
+            }
+            if (_connection is not null)
+            {
+                await _connection.DisposeAsync();
+                _connection = null;
+            }
+        }
+        finally
+        {
+            _initializationLock.Release();
+        }
     }
 
     private async Task InitializeAsync(CancellationToken cancellationToken)
