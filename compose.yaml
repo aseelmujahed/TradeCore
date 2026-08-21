@@ -63,6 +63,7 @@ services:
       dockerfile: TradeCore.Api/Dockerfile
     environment:
       <<: *tradecore-environment
+      ASPNETCORE_ENVIRONMENT: Development
       Database__MigrateOnStartup: "false"
       Database__ExitAfterMigration: "false"
     ports:
