@@ -24,7 +24,7 @@ public sealed class DepositRequestModelValidationTests
         {
             Assert.Contains(modelState, entry =>
                 entry.Key == nameof(DepositRequest.Amount) &&
-                entry.Value.Errors.Any(error => error.ErrorMessage == "Amount must be greater than 0."));
+                entry.Value?.Errors.Any(error => error.ErrorMessage == "Amount must be greater than 0.") == true);
         }
     }
 

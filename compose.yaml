@@ -28,11 +28,11 @@ services:
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_listener", "5672"]
       interval: 5s
-      timeout: 5s
+      timeout: 30s
       retries: 12
-      start_period: 15s
+      start_period: 180s
 
   tradecore-migrations:
     image: tradecore-api:local
