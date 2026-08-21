@@ -5,8 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
-using TradeCore.Api.Messaging;
-using TradeCore.Messaging;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
 
@@ -61,12 +59,6 @@ public sealed class OrdersApiRequestBindingTests
         var stockService = new StockService(context);
         return new OrdersController(
             new OrderService(context, accountService, stockService),
-            new RecordingOrderMessagePublisher(),
             NullLogger<OrdersController>.Instance);
-    }
-
-    private sealed class RecordingOrderMessagePublisher : IOrderMessagePublisher
-    {
-        public Task PublishAsync(OrderSubmittedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

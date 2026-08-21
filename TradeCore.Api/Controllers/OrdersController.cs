@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using TradeCore.Api.DTOs.Orders;
-using TradeCore.Api.Messaging;
-using TradeCore.Messaging;
 using TradeCore.Console.Models;
 using TradeCore.Console.Services;
 
@@ -12,16 +10,13 @@ namespace TradeCore.Api.Controllers;
 public class OrdersController : ControllerBase
 {
     private readonly OrderService _orderService;
-    private readonly IOrderMessagePublisher _orderMessagePublisher;
     private readonly ILogger<OrdersController> _logger;
 
     public OrdersController(
         OrderService orderService,
-        IOrderMessagePublisher orderMessagePublisher,
         ILogger<OrdersController> logger)
     {
         _orderService = orderService;
-        _orderMessagePublisher = orderMessagePublisher;
         _logger = logger;
     }
 
@@ -30,7 +25,7 @@ public class OrdersController : ControllerBase
     {
         try
         {
-            var order = await _orderService.CreateOrderAsync(
+            var (order, outboxMessage) = await _orderService.CreateOrderWithOutboxAsync(
                 request.AccountId,
                 request.StockSymbol.Trim(),
                 request.OrderType,
@@ -38,11 +33,10 @@ public class OrdersController : ControllerBase
                 request.Price,
                 cancellationToken);
 
-            await _orderMessagePublisher.PublishAsync(new OrderSubmittedMessage(order.Id), cancellationToken);
-
             _logger.LogInformation(
-                "Order {OrderId} submitted for account {AccountId} and stock {StockId} with type {OrderType}, quantity {Quantity}, and price {Price}.",
+                "Order {OrderId} submitted with outbox message {OutboxMessageId} for account {AccountId} and stock {StockId} with type {OrderType}, quantity {Quantity}, and price {Price}.",
                 order.Id,
+                outboxMessage.Id,
                 order.AccountId,
                 order.StockId,
                 order.Type,

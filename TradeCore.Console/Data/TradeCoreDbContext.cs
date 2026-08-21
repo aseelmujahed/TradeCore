@@ -14,6 +14,8 @@ public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> opti
 
     public DbSet<Order> Orders => Set<Order>();
 
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
     public DbSet<Trade> Trades => Set<Trade>();
 
     public DbSet<PortfolioPosition> PortfolioPositions => Set<PortfolioPosition>();
@@ -75,6 +77,25 @@ public sealed class TradeCoreDbContext(DbContextOptions<TradeCoreDbContext> opti
             entity.HasOne<Stock>()
                 .WithMany()
                 .HasForeignKey(order => order.StockId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("OutboxMessages");
+            entity.HasKey(message => message.Id);
+            entity.Property(message => message.OrderId).IsRequired();
+            entity.Property(message => message.Owner).IsRequired().HasMaxLength(20);
+            entity.Property(message => message.MessageType).IsRequired().HasMaxLength(100);
+            entity.Property(message => message.Payload).IsRequired();
+            entity.Property(message => message.CreatedAt).IsRequired();
+            entity.Property(message => message.PublishedAt);
+            entity.Property(message => message.AttemptCount).IsRequired();
+            entity.Property(message => message.LastError).HasMaxLength(2_000);
+            entity.HasIndex(message => new { message.Owner, message.PublishedAt, message.CreatedAt });
+            entity.HasOne<Order>()
+                .WithMany()
+                .HasForeignKey(message => message.OrderId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

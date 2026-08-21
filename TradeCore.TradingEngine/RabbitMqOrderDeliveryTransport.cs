@@ -13,6 +13,10 @@ public sealed class RabbitMqOrderDeliveryTransport(IOptions<RabbitMqOptions> opt
     public static string RetryQueueName(string ordersQueue) => $"{ordersQueue}.retry";
     public static string DeadLetterQueueName(string ordersQueue) => $"{ordersQueue}.dead-letter";
     public void SetChannel(IChannel channel) => _channel = channel;
+    public void ClearChannel(IChannel channel)
+    {
+        if (ReferenceEquals(_channel, channel)) _channel = null;
+    }
 
     public Task AcknowledgeAsync(OrderDelivery delivery, CancellationToken cancellationToken) => GetChannel().BasicAckAsync(delivery.DeliveryTag, false, cancellationToken).AsTask();
     public Task ScheduleRetryAsync(OrderDelivery delivery, int nextAttempt, CancellationToken cancellationToken) => PublishAsync(RetryQueueName(options.Value.OrdersQueue), delivery, nextAttempt, null, cancellationToken);

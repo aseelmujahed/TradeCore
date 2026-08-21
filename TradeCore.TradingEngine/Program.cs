@@ -31,6 +31,7 @@ public static class Program
         builder.Services.AddSingleton<ITradingEventPublisher, RabbitMqTradingEventPublisher>();
         builder.Services.AddSingleton<IOrderMessageHandler, OrderMessageHandler>();
         builder.Services.AddSingleton<RabbitMqOrderDeliveryTransport>();
+        builder.Services.AddSingleton<IRabbitMqOrderConsumerSessionFactory, RabbitMqOrderConsumerSessionFactory>();
         builder.Services.AddSingleton<IOrderMessageDeliveryTransport>(serviceProvider =>
             serviceProvider.GetRequiredService<RabbitMqOrderDeliveryTransport>());
         builder.Services.AddSingleton<ReliableOrderDeliveryProcessor>();

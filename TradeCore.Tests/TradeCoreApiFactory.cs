@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using TradeCore.Api.Messaging;
 using TradeCore.Console.Data;
 using TradeCore.Messaging;
@@ -35,14 +36,16 @@ public class TradeCoreApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("ConnectionStrings:TradeCoreDatabase", "Host=localhost;Database=tradecore_test");
-        builder.UseSetting("RabbitMq:Enabled", "false");
+        builder.UseSetting("RabbitMq:Enabled", "true");
         builder.ConfigureServices(services =>
         {
+            services.RemoveAll<IHostedService>();
             services.RemoveAll<DbContextOptions<TradeCoreDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<TradeCoreDbContext>>();
             services.RemoveAll<TradeCoreDbContext>();
             services.AddDbContext<TradeCoreDbContext>(options => options.UseSqlite(_connectionString));
             services.RemoveAll<IOrderMessagePublisher>();
+            services.AddHostedService<ApiOutboxPublisher>();
             services.AddSingleton<OrderProcessingMonitor>();
             services.AddSingleton<TestTradingEventPublisher>();
             services.AddScoped<IOrderMessagePublisher, InProcessTradingEngineOrderPublisher>();
@@ -114,25 +117,29 @@ public class TradeCoreApiFactory : WebApplicationFactory<Program>
 
     private sealed class OrderProcessingMonitor
     {
-        private readonly ConcurrentDictionary<Guid, TaskCompletionSource<Exception?>> _completions = new();
+        private readonly ConcurrentDictionary<Guid, OrderProcessingCompletion> _completions = new();
 
         public TaskCompletionSource<Exception?> Begin(Guid orderId)
         {
-            var completion = new TaskCompletionSource<Exception?>(TaskCreationOptions.RunContinuationsAsynchronously);
-            if (!_completions.TryAdd(orderId, completion))
+            var completion = _completions.GetOrAdd(orderId, static _ => new OrderProcessingCompletion());
+            if (Interlocked.Increment(ref completion.PublicationCount) != 1)
             {
                 throw new InvalidOperationException($"Order {orderId} was published more than once in this test host.");
             }
-            return completion;
+            return completion.Result;
         }
 
         public Task<Exception?> WaitAsync(Guid orderId, TimeSpan timeout)
         {
-            if (!_completions.TryGetValue(orderId, out var completion))
-            {
-                throw new InvalidOperationException($"Order {orderId} has not been published.");
-            }
-            return completion.Task.WaitAsync(timeout);
+            var completion = _completions.GetOrAdd(orderId, static _ => new OrderProcessingCompletion());
+            return completion.Result.Task.WaitAsync(timeout);
+        }
+
+        private sealed class OrderProcessingCompletion
+        {
+            public int PublicationCount;
+
+            public TaskCompletionSource<Exception?> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         }
     }
 }

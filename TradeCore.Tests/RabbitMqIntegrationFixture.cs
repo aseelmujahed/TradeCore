@@ -104,6 +104,7 @@ public sealed class RabbitMqIntegrationFixture : IAsyncLifetime
         builder.Services.AddSingleton<ITradingEventPublisher, RabbitMqTradingEventPublisher>();
         builder.Services.AddSingleton<IOrderMessageHandler, OrderMessageHandler>();
         builder.Services.AddSingleton<RabbitMqOrderDeliveryTransport>();
+        builder.Services.AddSingleton<IRabbitMqOrderConsumerSessionFactory, RabbitMqOrderConsumerSessionFactory>();
         builder.Services.AddSingleton<IOrderMessageDeliveryTransport>(provider =>
             provider.GetRequiredService<RabbitMqOrderDeliveryTransport>());
         builder.Services.AddSingleton<ReliableOrderDeliveryProcessor>();

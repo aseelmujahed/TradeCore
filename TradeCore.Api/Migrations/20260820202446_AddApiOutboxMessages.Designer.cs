@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TradeCore.Console.Data;
@@ -11,9 +12,11 @@ using TradeCore.Console.Data;
 namespace TradeCore.Api.Migrations
 {
     [DbContext(typeof(TradeCoreDbContext))]
-    partial class TradeCoreDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820202446_AddApiOutboxMessages")]
+    partial class AddApiOutboxMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

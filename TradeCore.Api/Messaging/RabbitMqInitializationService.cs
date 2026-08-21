@@ -23,10 +23,9 @@ public sealed class RabbitMqInitializationService(
         }
         catch (Exception exception)
         {
-            logger.LogCritical(
-                "RabbitMQ initialization failed ({ExceptionType}).",
+            logger.LogWarning(
+                "RabbitMQ initialization failed ({ExceptionType}); the API outbox publisher will retry when it has pending messages.",
                 exception.GetType().Name);
-            throw;
         }
     }
 

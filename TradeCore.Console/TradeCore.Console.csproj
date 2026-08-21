@@ -13,4 +13,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TradeCore.Messaging\TradeCore.Messaging.csproj" />
+  </ItemGroup>
+
 </Project>

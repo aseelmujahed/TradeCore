@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using TradeCore.Api.Messaging;
 using TradeCore.Messaging;
 
@@ -26,6 +27,8 @@ public sealed class RealRabbitMqApiFactory(RabbitMqTestSettings rabbitMq) : Trad
         {
             services.RemoveAll<IOrderMessagePublisher>();
             services.AddScoped<IOrderMessagePublisher, RabbitMqOrderMessagePublisher>();
+            services.AddHostedService<RabbitMqInitializationService>();
+            services.AddHostedService<RabbitMqTradingEventConsumer>();
         });
     }
 

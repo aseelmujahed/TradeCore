@@ -57,7 +57,16 @@ public sealed class RabbitMqConnectionService(
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            await _session!.PublishAsync(message, cancellationToken);
+            try
+            {
+                await _session!.PublishAsync(message, cancellationToken);
+            }
+            catch
+            {
+                await _session!.DisposeAsync();
+                _session = null;
+                throw;
+            }
         }
         finally
         {

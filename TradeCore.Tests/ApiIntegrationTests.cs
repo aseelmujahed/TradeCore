@@ -78,6 +78,7 @@ public sealed class ApiIntegrationTests : IClassFixture<TradeCoreApiFactory>
         var dbContext = scope.ServiceProvider.GetRequiredService<TradeCoreDbContext>();
         var stock = await dbContext.Stocks.SingleAsync(stock => stock.Symbol == "AAPL");
         var persisted = await dbContext.Orders.SingleAsync(order => order.Id == created.Id);
+        var outboxMessage = await dbContext.OutboxMessages.SingleAsync(message => message.OrderId == created.Id);
         Assert.Equal(user.Id, (await dbContext.Accounts.SingleAsync(accountEntity => accountEntity.Id == persisted.AccountId)).UserId);
         Assert.Equal(stock.Id, created.StockId);
         Assert.Equal(created.AccountId, persisted.AccountId);
@@ -86,6 +87,8 @@ public sealed class ApiIntegrationTests : IClassFixture<TradeCoreApiFactory>
         Assert.Equal(created.Quantity, persisted.Quantity);
         Assert.Equal(created.Price, persisted.Price);
         Assert.Equal(OrderStatus.Pending, persisted.Status);
+        Assert.Equal(TradeCore.Console.Models.OutboxMessage.ApiOwner, outboxMessage.Owner);
+        Assert.Equal(TradeCore.Console.Models.OutboxMessage.OrderSubmittedMessageType, outboxMessage.MessageType);
     }
 
     [Fact]

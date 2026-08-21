@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TradeCore.Api.Controllers;
 using TradeCore.Api.DTOs.Orders;
-using TradeCore.Api.Messaging;
 using TradeCore.Console.Enums;
 using TradeCore.Console.Services;
 using TradeCore.Messaging;
@@ -12,7 +12,7 @@ namespace TradeCore.Tests;
 public sealed class StructuredLoggingTests
 {
     [Fact]
-    public async Task CreateOrder_WhenPublished_LogsStructuredOrderSubmission()
+    public async Task CreateOrder_WhenPersistedWithOutbox_LogsStructuredOrderSubmission()
     {
         using var database = new TradingTestDatabase();
         await using var dbContext = database.CreateContext();
@@ -20,7 +20,6 @@ public sealed class StructuredLoggingTests
         var logger = new RecordingLogger<OrdersController>();
         var controller = new OrdersController(
             new OrderService(dbContext, new AccountService(dbContext), new StockService(dbContext)),
-            new SuccessfulOrderMessagePublisher(),
             logger);
 
         var result = await controller.CreateOrder(
@@ -29,11 +28,13 @@ public sealed class StructuredLoggingTests
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         var response = Assert.IsType<OrderResponse>(created.Value);
+        var outboxMessageId = Assert.Single(await dbContext.OutboxMessages.ToListAsync()).Id;
         var entry = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Information, entry.Level);
         AssertProperties(
             entry,
             ("OrderId", response.Id),
+            ("OutboxMessageId", outboxMessageId),
             ("AccountId", scenario.Buyer.Id),
             ("StockId", scenario.Stock.Id),
             ("OrderType", OrderType.Buy),
@@ -133,11 +134,6 @@ public sealed class StructuredLoggingTests
             Assert.True(entry.Properties.TryGetValue(name, out var actual), $"Missing structured property '{name}'.");
             Assert.Equal(value, actual);
         }
-    }
-
-    private sealed class SuccessfulOrderMessagePublisher : IOrderMessagePublisher
-    {
-        public Task PublishAsync(OrderSubmittedMessage message, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class RecordingLogger<T> : ILogger<T>

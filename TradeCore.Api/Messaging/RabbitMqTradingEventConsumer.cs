@@ -27,7 +27,28 @@ public sealed class RabbitMqTradingEventConsumer(
             return;
         }
 
-        var settings = options.Value;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await StartConsumingAsync(options.Value, stoppingToken);
+                await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "RabbitMQ trading-event consumer could not connect; it will retry.");
+                await DisposeResourcesAsync();
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+            }
+        }
+    }
+
+    private async Task StartConsumingAsync(RabbitMqOptions settings, CancellationToken cancellationToken)
+    {
         var factory = new ConnectionFactory
         {
             HostName = settings.HostName,
@@ -35,17 +56,14 @@ public sealed class RabbitMqTradingEventConsumer(
             UserName = settings.UserName,
             Password = settings.Password
         };
-        _connection = await factory.CreateConnectionAsync(stoppingToken);
-        _channel = await _connection.CreateChannelAsync(new CreateChannelOptions(true, true), stoppingToken);
-        await DeclareTopologyAsync(settings, stoppingToken);
-        await _channel.BasicQosAsync(0, 1, false, stoppingToken);
+        _connection = await factory.CreateConnectionAsync(cancellationToken);
+        _channel = await _connection.CreateChannelAsync(new CreateChannelOptions(true, true), cancellationToken);
+        await DeclareTopologyAsync(settings, cancellationToken);
+        await _channel.BasicQosAsync(0, 1, false, cancellationToken);
 
-        _consumerTags.Add(await ConsumeAsync<TradeExecutedEvent>(settings.TradeExecutedQueue, "TradeExecuted", stoppingToken));
-        _consumerTags.Add(await ConsumeAsync<StockPriceUpdatedEvent>(settings.StockPriceUpdatedQueue, "StockPriceUpdated", stoppingToken));
+        _consumerTags.Add(await ConsumeAsync<TradeExecutedEvent>(settings.TradeExecutedQueue, "TradeExecuted", cancellationToken));
+        _consumerTags.Add(await ConsumeAsync<StockPriceUpdatedEvent>(settings.StockPriceUpdatedQueue, "StockPriceUpdated", cancellationToken));
         logger.LogInformation("Consuming trading events from {TradeQueue} and {PriceQueue}.", settings.TradeExecutedQueue, settings.StockPriceUpdatedQueue);
-
-        try { await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken); }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
     }
 
     private async Task<string> ConsumeAsync<TMessage>(string queue, string eventType, CancellationToken cancellationToken)
@@ -192,10 +210,24 @@ public sealed class RabbitMqTradingEventConsumer(
         await base.StopAsync(cancellationToken);
     }
 
+    private async Task DisposeResourcesAsync()
+    {
+        _consumerTags.Clear();
+        if (_channel is not null)
+        {
+            await _channel.DisposeAsync();
+            _channel = null;
+        }
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync();
+            _connection = null;
+        }
+    }
+
     public override void Dispose()
     {
-        _channel?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        _connection?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        DisposeResourcesAsync().GetAwaiter().GetResult();
         base.Dispose();
     }
 }
