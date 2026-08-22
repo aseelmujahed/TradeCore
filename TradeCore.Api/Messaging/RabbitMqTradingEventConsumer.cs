@@ -15,9 +15,12 @@ public sealed class RabbitMqTradingEventConsumer(
 {
     private const string AttemptHeader = "x-tradecore-attempt";
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private readonly object _consumerTagsLock = new();
+    private readonly SemaphoreSlim _shutdownGate = new(1, 1);
     private IConnection? _connection;
     private IChannel? _channel;
     private readonly List<string> _consumerTags = [];
+    private bool _stopping;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -61,9 +64,36 @@ public sealed class RabbitMqTradingEventConsumer(
         await DeclareTopologyAsync(settings, cancellationToken);
         await _channel.BasicQosAsync(0, 1, false, cancellationToken);
 
-        _consumerTags.Add(await ConsumeAsync<TradeExecutedEvent>(settings.TradeExecutedQueue, "TradeExecuted", cancellationToken));
-        _consumerTags.Add(await ConsumeAsync<StockPriceUpdatedEvent>(settings.StockPriceUpdatedQueue, "StockPriceUpdated", cancellationToken));
+        await TrackConsumerAsync(await ConsumeAsync<TradeExecutedEvent>(settings.TradeExecutedQueue, "TradeExecuted", cancellationToken), cancellationToken);
+        await TrackConsumerAsync(await ConsumeAsync<StockPriceUpdatedEvent>(settings.StockPriceUpdatedQueue, "StockPriceUpdated", cancellationToken), cancellationToken);
         logger.LogInformation("Consuming trading events from {TradeQueue} and {PriceQueue}.", settings.TradeExecutedQueue, settings.StockPriceUpdatedQueue);
+    }
+
+    private async Task TrackConsumerAsync(string consumerTag, CancellationToken cancellationToken)
+    {
+        var cancelConsumer = false;
+        lock (_consumerTagsLock)
+        {
+            if (!_stopping)
+            {
+                _consumerTags.Add(consumerTag);
+                return;
+            }
+            cancelConsumer = true;
+        }
+
+        if (cancelConsumer)
+        {
+            await _shutdownGate.WaitAsync(CancellationToken.None);
+            try
+            {
+                if (_channel is not null) await _channel.BasicCancelAsync(consumerTag, false, cancellationToken);
+            }
+            finally
+            {
+                _shutdownGate.Release();
+            }
+        }
     }
 
     private async Task<string> ConsumeAsync<TMessage>(string queue, string eventType, CancellationToken cancellationToken)
@@ -200,28 +230,59 @@ public sealed class RabbitMqTradingEventConsumer(
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        if (_channel is not null)
+        await _shutdownGate.WaitAsync(cancellationToken);
+        try
         {
-            foreach (var consumerTag in _consumerTags)
+            IChannel? channel;
+            string[] consumerTags;
+            var shouldCancel = false;
+            lock (_consumerTagsLock)
             {
-                await _channel.BasicCancelAsync(consumerTag, false, cancellationToken);
+                channel = _channel;
+                consumerTags = [.. _consumerTags];
+                if (!_stopping)
+                {
+                    _stopping = true;
+                    shouldCancel = true;
+                }
             }
+
+            if (shouldCancel && channel is not null)
+            {
+                foreach (var consumerTag in consumerTags)
+                {
+                    await channel.BasicCancelAsync(consumerTag, false, cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            _shutdownGate.Release();
         }
         await base.StopAsync(cancellationToken);
     }
 
     private async Task DisposeResourcesAsync()
     {
-        _consumerTags.Clear();
-        if (_channel is not null)
+        await _shutdownGate.WaitAsync(CancellationToken.None);
+        try
         {
-            await _channel.DisposeAsync();
-            _channel = null;
+            IChannel? channel;
+            IConnection? connection;
+            lock (_consumerTagsLock)
+            {
+                _consumerTags.Clear();
+                channel = _channel;
+                _channel = null;
+                connection = _connection;
+                _connection = null;
+            }
+            if (channel is not null) await channel.DisposeAsync();
+            if (connection is not null) await connection.DisposeAsync();
         }
-        if (_connection is not null)
+        finally
         {
-            await _connection.DisposeAsync();
-            _connection = null;
+            _shutdownGate.Release();
         }
     }
 

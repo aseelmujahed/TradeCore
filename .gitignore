@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+k8s/secret.local.yaml
 
 # User-specific files
 *.rsuser

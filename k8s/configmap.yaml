@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tradecore-config
+  labels:
+    app.kubernetes.io/part-of: tradecore
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  RabbitMq__Enabled: "true"
+  RabbitMq__HostName: rabbitmq
+  RabbitMq__Port: "5672"
+  RabbitMq__OrdersQueue: orders
+  RabbitMq__TradeExecutedQueue: trade-executed
+  RabbitMq__StockPriceUpdatedQueue: stock-price-updated
+  RabbitMq__MaxProcessingAttempts: "3"
+  RabbitMq__RetryDelayMilliseconds: "5000"

@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tradecore-migrations
+  labels:
+    app.kubernetes.io/name: tradecore-migrations
+    app.kubernetes.io/part-of: tradecore
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tradecore-migrations
+        app.kubernetes.io/part-of: tradecore
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      containers:
+        - name: migrations
+          image: tradecore-api:local
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: tradecore-config
+          env:
+            - name: ConnectionStrings__TradeCoreDatabase
+              valueFrom:
+                secretKeyRef:
+                  name: tradecore-credentials
+                  key: connection-string
+            - name: RabbitMq__UserName
+              valueFrom:
+                secretKeyRef:
+                  name: tradecore-credentials
+                  key: rabbitmq-user
+            - name: RabbitMq__Password
+              valueFrom:
+                secretKeyRef:
+                  name: tradecore-credentials
+                  key: rabbitmq-password
+            - name: Database__MigrateOnStartup
+              value: "true"
+            - name: Database__ExitAfterMigration
+              value: "true"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
